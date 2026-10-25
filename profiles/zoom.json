@@ -1,0 +1,8 @@
+{
+  "name":"Zoom Show / Scarlett + BlackHole",
+  "meter_device_pattern":"Aggregate|ZOOM_RECORD_INPUTS",
+  "required_input_channels":4,
+  "sources":[{"channel":1,"name":"Presenter Mic / assumed ch 1"},{"channel":2,"name":"Scarlett input 2 / verify"},{"channel":3,"name":"Scarlett input 3 / verify"},{"channel":4,"name":"Talkback / do not record"}],
+  "expected":{"inputs":"Aggregate: Scarlett inputs + BlackHole stereo, exact channels to verify","outputs_1_2":"Studio speakers","outputs_3_4":"Quad headset amplifier","audition":"Presenter mono + Zoom guests stereo, input monitoring off","sample_rate":48000},
+  "notes":"The guest channel numbers cannot be assumed. Identify actual Aggregate Device channel numbering, then edit this file and increase required_input_channels. BlackHole 2ch and 16ch devices are distinct."
+}
