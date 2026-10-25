@@ -44,10 +44,11 @@ def check(studio, mode, meter, apps):
                          "Silence can come from a muted/disconnected source, routing, or microphone permissions. "
                          "Check the signal path and Privacy & Security › Microphone; do not assume a cause.",
                          "open_mic_privacy", "Open microphone settings"))
-    if not app_running(apps, "focusrite control"):
-        F.append(finding("fc2_app", AGENT, "info", "Focusrite Control 2 is closed",
-                         "Not required to record (routing is stored in the Scarlett), but needed to change routing.",
-                         "open_focusrite", "Open it"))
+    classic_running = any(Path(name).name.lower().replace(' ', '') == 'focusritecontrol' for name in apps)
+    if not classic_running:
+        F.append(finding("focusrite_app", AGENT, "info", "Focusrite Control is closed",
+                         "Scarlett 18i8 3rd Generation uses the original Focusrite Control, not Focusrite Control 2. "
+                         "Opening the app does not authorise a routing/preset change.", "open_focusrite", "Open Focusrite Control"))
     if mode == "zoom" and not app_running(apps, "zoom.us", "zoom workplace"):
         F.append(finding("zoom_app", AGENT, "warn", "Zoom is not open", "", "open_zoom", "Open Zoom"))
     try:
@@ -85,8 +86,35 @@ def open_accessibility(studio):
 
 
 def open_focusrite(studio):
-    studio.open_app("Focusrite Control 2")
-    return "Opening Focusrite Control 2."
+    if studio.audio.simulated:
+        studio.sim_apps.add('focusrite control')
+        return '(simulation) Focusrite Control opened.'
+    if any(Path(name).name.lower().replace(' ', '') == 'focusritecontrol' for name in studio.running_apps()):
+        return 'Focusrite Control is already running; its settings were left unchanged.'
+    from ..applications import discover
+    app = discover('focusrite')
+    if not app:
+        raise RuntimeError('The original Focusrite Control was not found. Scarlett 18i8 3rd Generation requires '
+                           'Focusrite Control from Focusrite’s official downloads, not Control 2.')
+    studio.open_app(app['path'])
+    return 'Requested launch of Focusrite Control. No routing, preset or sample-rate command was sent.'
+
+
+def open_studio_apps(studio):
+    from . import audition
+    tasks = [('Focusrite Control', open_focusrite), ('Adobe Audition', audition.open_application)]
+    if studio.mode == 'zoom':
+        tasks.append(('Zoom', open_zoom))
+    results = []
+    failures = []
+    for name, fn in tasks:
+        try:
+            results.append(fn(studio))
+        except (RuntimeError, OSError) as exc:
+            failures.append('%s: %s' % (name, exc))
+    if failures:
+        raise RuntimeError('Some studio applications could not open. ' + ' '.join(results + failures))
+    return ' '.join(results)
 
 
 def open_zoom(studio):
@@ -103,7 +131,11 @@ ACTIONS = [
     Action("keep_awake", "Keep the Mac awake", keep_awake, safe=True, live_safe=True, agent=AGENT),
     Action("open_mic_privacy", "Open microphone settings", open_mic_privacy, live_safe=True, agent=AGENT),
     Action("open_accessibility", "Open Accessibility settings", open_accessibility, live_safe=True, agent=AGENT),
-    Action("open_focusrite", "Open Focusrite Control 2", open_focusrite, live_safe=True, agent=AGENT),
+    Action("open_focusrite", "Open Focusrite Control", open_focusrite, agent=AGENT,
+           impact='Opens the original Focusrite Control. Check recording is idle; no preset or routing changes are requested.'),
+    Action('open_studio_apps', 'Open studio applications', open_studio_apps, agent=AGENT,
+           impact='Opens Focusrite Control and Audition (also Zoom in Zoom mode). Their audio engines may activate. '
+                  'Check recording is idle. No session, transport, sample-rate or routing changes are requested.'),
     Action("open_zoom", "Open Zoom", open_zoom, agent=AGENT,
            impact="Starts Zoom, which may activate its configured microphone and speaker devices."),
     Action("open_audio_midi", "Open Audio MIDI Setup", open_audio_midi, live_safe=True, agent=AGENT),

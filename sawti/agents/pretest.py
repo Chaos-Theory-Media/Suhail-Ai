@@ -129,7 +129,7 @@ class Pretest:
                 if leak:
                     step["status"] = "fail"
                     step["detail"] = (f"Talkback is also arriving on {names.get(leak[0])} — it would be recorded. "
-                                      "Check Focusrite Control 2 routing (load the show preset).")
+                                      "Inspect Focusrite Control routing while idle; do not load a preset during production.")
                 else:
                     step["status"] = "pass"
                     step["detail"] = ("No comparable signal observed on the monitored programme inputs. "

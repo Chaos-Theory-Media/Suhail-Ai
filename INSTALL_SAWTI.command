@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Sawti 3.0.2 installer for Apple-silicon Macs (macOS 14 Sonoma or newer).
+# Sawti 3.0.3 installer for Apple-silicon Macs (macOS 14 Sonoma or newer).
 # Safe to run again at any time: it repairs or updates what is missing and keeps settings and learning.
 #
 # Installs, all inside ~/Library/Application Support/Sawti (nothing in /Applications is changed):
@@ -34,7 +34,7 @@ fail() { print "\n✖ $1\n  Setup stopped; earlier completed steps may remain. F
 yes_no() { local a; read "a?$1 [y/n]: "; [[ "$a" == [yY]* ]]; }
 
 print "────────────────────────────────────────────"
-print " Sawti 3.0.2 · studio agents · installer"
+print " Sawti 3.0.3 · studio agents · installer"
 print "────────────────────────────────────────────"
 [[ "$(uname -s)" == "Darwin" ]] || fail "This installer is for macOS."
 [[ "$(uname -m)" == "arm64" ]] || fail "An Apple-silicon Mac (M1 or newer) is required."

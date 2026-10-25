@@ -46,9 +46,17 @@
         <h2>Studio check</h2>
         <div class="row gap">
           <button class="btn" id="recheck">Check again</button>
+          <button class="btn primary" id="openStudioApps">Open studio apps</button>
           <button class="btn primary" id="fixAll">Run non-audio fixes</button>
         </div>
       </div>
+      <p class="hint">ON starts Sawti’s services. Open studio apps requests Focusrite Control and Audition after your approval; it does not load a session or change routing.</p>
+      <div class="row gap">
+        <button class="btn" id="openFocusrite">Open Focusrite Control</button>
+        <button class="btn" id="openAuditionApp">Open Adobe Audition</button>
+        <button class="btn" id="deviceDiagnostics">Show device diagnostics</button>
+      </div>
+      <pre id="deviceDiagnosticText" class="box" hidden></pre>
       <p class="hint">Red = must fix · Amber = should fix · Blue = confirm by hand (once per day) · Green = fine.</p>
       <div id="findings" class="findings"></div>
 

@@ -7,6 +7,7 @@ SimAudio   — simulation (SAWTI_SIMULATE=1) for training, demos and automated t
 import json
 import subprocess
 import threading
+import time
 
 from . import paths
 
@@ -21,7 +22,9 @@ class AudioError(RuntimeError):
 
 
 def is_scarlett(d):
-    return "scarlett" in d["name"].lower() and d.get("transport") != "aggregate" and d["inputs"] >= 4
+    identity = ' '.join(str(d.get(k) or '') for k in ('name', 'uid')).lower()
+    return (('scarlett' in identity or ('focusrite' in str(d.get('manufacturer', '')).lower() and '18i8' in identity))
+            and d.get("transport") != "aggregate" and d["inputs"] >= 4)
 
 
 def find_scarlett(devs):
@@ -59,6 +62,11 @@ class RealAudio:
     def __init__(self):
         self.lock = threading.RLock()
         self.stream_open = False  # PortAudio cannot be re-initialised while a stream is open
+        self.last_diagnostics = dict(helper_ok=False, portaudio_ok=False, queried=False)
+        self._native_cache = (0.0, [], None)
+
+    def diagnostics(self):
+        return dict(self.last_diagnostics)
 
     def helper_available(self):
         p = paths.helper_path()
@@ -72,7 +80,9 @@ class RealAudio:
             out = json.loads(r.stdout.strip().splitlines()[-1]) if r.stdout.strip() else {}
         except (subprocess.TimeoutExpired, json.JSONDecodeError, OSError) as exc:
             raise AudioError(f"Audio helper failed: {exc}") from exc
-        if not out.get("ok"):
+        if not isinstance(out, dict) or r.returncode or not out.get("ok"):
+            if not isinstance(out, dict):
+                raise AudioError('Audio helper returned an invalid response.')
             raise AudioError(out.get("error") or r.stderr.strip() or "Audio helper failed")
         return out
 
@@ -83,21 +93,92 @@ class RealAudio:
                 try:  # pick up devices created since start-up (PortAudio caches the list)
                     sd._terminate()
                     sd._initialize()
-                except Exception:
-                    pass
+                except Exception as exc:
+                    raise AudioError('PortAudio device refresh failed: ' + str(exc)) from exc
             return sd.query_devices()
 
+    def _system_devices(self):
+        """Read-only built-in macOS observation; never sets devices or rates."""
+        now = time.monotonic()
+        when, cached, error = self._native_cache
+        if now - when < 15:
+            if error:
+                raise AudioError(error)
+            return cached
+        try:
+            result = subprocess.run(['/usr/sbin/system_profiler', 'SPAudioDataType', '-json'],
+                                    capture_output=True, text=True, timeout=8)
+            if result.returncode:
+                raise AudioError(result.stderr.strip() or 'macOS audio inventory failed.')
+            data = json.loads(result.stdout)
+            if not isinstance(data, dict) or not isinstance(data.get('SPAudioDataType'), list):
+                raise AudioError('macOS audio inventory returned an unsupported response.')
+            found = []
+            def walk(items):
+                for item in items:
+                    if not isinstance(item, dict):
+                        continue
+                    if isinstance(item.get('_items'), list):
+                        walk(item['_items'])
+                    if not any(k in item for k in ('coreaudio_device_input', 'coreaudio_device_output')):
+                        continue
+                    def number(key):
+                        try:
+                            return max(0, int(float(item.get(key, 0))))
+                        except (TypeError, ValueError):
+                            return 0
+                    rate = number('coreaudio_device_srate')
+                    found.append(dict(name=item.get('_name', 'Unnamed audio device'), uid=None,
+                                      manufacturer=item.get('coreaudio_device_manufacturer', ''),
+                                      inputs=number('coreaudio_device_input'), outputs=number('coreaudio_device_output'),
+                                      rate=rate, rate_verified=rate > 0, rate_source='system_profiler',
+                                      transport=str(item.get('coreaudio_device_transport', 'unknown')).lower(),
+                                      subdevices=[], rates=[], control_available=False))
+            walk(data.get('SPAudioDataType', []))
+            self._native_cache = (now, found, None)
+            return found
+        except (OSError, ValueError, subprocess.TimeoutExpired, AudioError) as exc:
+            self._native_cache = (now, [], str(exc))
+            raise AudioError(str(exc)) from exc
+
     def devices(self):
+        diagnostics = dict(queried=True, helper_available=self.helper_available(), helper_ok=False,
+                           portaudio_ok=False, helper_error=None, portaudio_error=None)
         ca = []
         if self.helper_available():
             try:
                 ca = self._helper("list")["devices"]
-            except AudioError:
+                if not isinstance(ca, list):
+                    raise AudioError('Audio helper did not return a device list.')
+                diagnostics['helper_ok'] = True
+            except (AudioError, KeyError) as exc:
+                diagnostics['helper_error'] = str(exc)
                 ca = []
+        else:
+            diagnostics['helper_error'] = 'Sawti audio helper is not installed.'
         try:
             pa = list(self._portaudio())
-        except Exception:
+            diagnostics['portaudio_ok'] = True
+        except Exception as exc:
+            diagnostics['portaudio_error'] = str(exc)
             pa = []
+        self.last_diagnostics = diagnostics
+        known_names = {d['name'] for d in ca}
+        if not ca or any(not d.get('rate') for d in ca) or any(p['name'] not in known_names for p in pa):
+            try:
+                native = self._system_devices()
+                diagnostics['system_profiler_ok'] = True
+                if not ca:
+                    ca = native
+                else:
+                    for d in ca:
+                        matches = [n for n in native if n['name'] == d['name']]
+                        if not d.get('rate') and len(matches) == 1 and matches[0]['rate_verified']:
+                            d.update(rate=matches[0]['rate'], rate_source='system_profiler')
+                    ca.extend(n for n in native if n['name'] not in known_names)
+            except AudioError as exc:
+                diagnostics['system_profiler_ok'] = False
+                diagnostics['system_profiler_error'] = str(exc)
         used, out = set(), []
         if ca:
             for d in ca:
@@ -106,13 +187,19 @@ class RealAudio:
                     used.add(idx)
                 if sum(p['name'] == d['name'] for p in pa) != 1:
                     idx = None  # duplicate names cannot establish a safe PortAudio index
-                out.append(dict(d, index=idx, rate=int(d.get("rate") or 0), rate_verified=True))
-        else:  # no helper: PortAudio only, no UIDs (fixes that create devices are unavailable)
-            for i, p in enumerate(pa):
-                out.append(dict(index=i, uid=None, name=p["name"], inputs=p["max_input_channels"],
-                                outputs=p["max_output_channels"], rate=int(p["default_samplerate"]),
-                                rates=[], transport="aggregate" if "aggregate" in p["name"].lower() else "other",
-                                subdevices=[], rate_verified=False))
+                rate = int(d.get('rate') or 0)
+                out.append(dict(d, index=idx, rate=rate, rate_verified=rate > 0,
+                                rate_source=d.get('rate_source', 'coreaudio_helper')))
+        # Never discard a device visible to PortAudio merely because a partial
+        # helper inventory listed some other devices. Defaults remain unverified.
+        observed_names = {d['name'] for d in out}
+        for i, p in enumerate(pa):
+            if p['name'] in observed_names:
+                continue
+            out.append(dict(index=i, uid=None, name=p["name"], inputs=p["max_input_channels"],
+                            outputs=p["max_output_channels"], rate=int(p["default_samplerate"]),
+                            rates=[], transport="aggregate" if "aggregate" in p["name"].lower() else "other",
+                            subdevices=[], rate_verified=False, rate_source='portaudio_default', control_available=False))
         return out
 
     def create_aggregate(self, name, uid, main_uid, sub_uids, stacked=False):

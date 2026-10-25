@@ -59,7 +59,8 @@ const NEEDS_CONFIRM = { record: 'Press RECORD in Audition now?', stop: 'Press ST
 async function runAction(action) {
   let approval = {};
   const impactful = new Set(['record', 'stop', 'open_session', 'open_zoom', 'set_scarlett_48k',
-    'set_blackhole_48k', 'set_show_input_48k', 'create_show_input', 'repair_show_input', 'create_zoom_speaker']);
+    'set_blackhole_48k', 'set_show_input_48k', 'create_show_input', 'repair_show_input', 'create_zoom_speaker',
+    'open_focusrite', 'open_audition', 'open_studio_apps']);
   if (impactful.has(action)) {
     const review = await guard(() => api('/api/action/review', {body: {action}}));
     if (!review) return;
@@ -162,6 +163,19 @@ async function refreshChecks() {
 }
 $('#recheck').addEventListener('click', () => guard(async () => { await refreshChecks(); }, 'Checked again.'));
 $('#fixAll').addEventListener('click', () => runAction('fix_all'));
+$('#openStudioApps').addEventListener('click', () => runAction('open_studio_apps'));
+$('#openFocusrite').addEventListener('click', () => runAction('open_focusrite'));
+$('#openAuditionApp').addEventListener('click', () => runAction('open_audition'));
+$('#deviceDiagnostics').addEventListener('click', async () => {
+  const result = await guard(() => api('/api/devices'));
+  if (!result) return;
+  const summary = {audio_queries: result.diagnostics, helper_installed: result.helper,
+    devices: result.devices.map(d => ({name: d.name, inputs: d.inputs, outputs: d.outputs,
+      observed_rate_hz: d.rate_verified ? d.rate : null, rate_verified: !!d.rate_verified,
+      rate_source: d.rate_source || 'simulation', capture_engine_index: d.index}))};
+  $('#deviceDiagnosticText').hidden = false;
+  $('#deviceDiagnosticText').textContent = JSON.stringify(summary, null, 2);
+});
 
 // ------------------------------------------------------------------ Audition
 async function refreshAudition() {

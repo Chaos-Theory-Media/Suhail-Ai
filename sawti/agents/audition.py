@@ -24,27 +24,29 @@ _bundle_cache = {}
 
 # ------------------------------------------------------------------ app discovery
 def find_app():
-    if "app" in _bundle_cache:
-        return _bundle_cache["app"]
-    cands = []
-    try:
-        r = subprocess.run(["/usr/bin/mdfind", "kMDItemCFBundleIdentifier == 'com.adobe.Audition*'"],
-                           capture_output=True, text=True, timeout=5)
-        cands += [x for x in r.stdout.splitlines() if x.endswith(".app")]
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-    cands += sorted(glob.glob("/Applications/Adobe Audition*/Adobe Audition*.app"), reverse=True)
-    app = None
-    for c in cands:
-        try:
-            with open(os.path.join(c, "Contents", "Info.plist"), "rb") as f:
-                bid = plistlib.load(f).get("CFBundleIdentifier")
-            app = dict(path=c, bundle_id=bid or "com.adobe.Audition", name=Path(c).stem)
-            break
-        except OSError:
-            continue
-    _bundle_cache["app"] = app
+    from ..applications import discover
+    cached = _bundle_cache.get('app')
+    if cached and Path(cached['path']).is_dir():
+        return cached
+    app = discover('audition')
+    # A missing app must be discoverable after installation; do not cache None.
+    if app:
+        _bundle_cache['app'] = app
     return app
+
+
+def open_application(studio):
+    if studio.audio.simulated:
+        studio.sim_apps.add('adobe audition')
+        return '(simulation) Adobe Audition opened.'
+    if any('audition' in name.lower() for name in studio.running_apps()):
+        return 'Adobe Audition is already running; its current session was left unchanged.'
+    app = find_app()
+    if not app:
+        raise RuntimeError('Adobe Audition was not found in Applications. Install/open it once with Creative Cloud, then retry.')
+    studio.open_app(app['path'])
+    return ('Requested launch of %s. Sawti did not request a session or recording command. '
+            'Check any workspace restored by Audition.') % app['name']
 
 
 # ------------------------------------------------------------------ session files
@@ -248,11 +250,14 @@ def check(studio, mode, apps):
                              "open_session", "Open today's session"))
         else:
             F.append(finding("audition_open", AGENT, "warn", "Adobe Audition is not open",
-                             "Open Audition to set up the show template."))
+                             "Open Audition to set up the show template.", 'open_audition', 'Open Adobe Audition'))
     return F
 
 
 ACTIONS = [
+    Action('open_audition', 'Open Adobe Audition', open_application, agent=AGENT,
+           impact='Requests Audition launch, which may activate audio or restore its own workspace. '
+                  'Sawti does not request a session. Check all recording is idle.'),
     Action("prepare_session", "Prepare today's session", lambda st: prepare_session(st), safe=True, live_safe=True,
            agent=AGENT),
     Action("open_session", "Open session in Audition", open_session, live_safe=False, agent=AGENT,

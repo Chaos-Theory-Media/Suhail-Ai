@@ -26,7 +26,7 @@ class Studio:
         self.live = False
         self.live_since = None
         self.accessibility_ok = None
-        self.sim_apps = {"focusrite control 2"} if self.audio.simulated else set()
+        self.sim_apps = {"focusrite control"} if self.audio.simulated else set()
         self.notices = collections.deque(maxlen=30)
         self._notice_id = 0
         self._dev_cache = (0.0, [])
@@ -111,7 +111,12 @@ class Studio:
             self.sim_apps.add(name.lower())
             return
         import subprocess
-        subprocess.run(["/usr/bin/open", "-a", name], check=False, capture_output=True, timeout=10)
+        try:
+            result = subprocess.run(["/usr/bin/open", "-a", name], check=False, capture_output=True, text=True, timeout=10)
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError('macOS did not complete the application launch request in time.') from exc
+        if result.returncode:
+            raise RuntimeError(result.stderr.strip() or 'macOS refused to open ' + name)
 
     def open_url(self, url):
         if self.audio.simulated:
@@ -239,8 +244,10 @@ class Studio:
             if a.agent == 'Devices':
                 self.pretest.cancel()
                 self.stop_meter()  # release only Sawti capture before the authorised change
-        msg = a.fn(self)
-        self.approvals.invalidate()
+        try:
+            msg = a.fn(self)
+        finally:
+            self.approvals.invalidate()
         self._dev_cache = (0.0, [])
         self.save_state()
         self.learn("fix_applied", action=name, by=by, mode=self.mode)

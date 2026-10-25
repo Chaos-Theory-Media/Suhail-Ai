@@ -1,3 +1,7 @@
+# 3.0.3 studio application and device diagnostics
+
+Corrects Focusrite Control compatibility, adds explicit studio-application launch controls independent of session templates, supports actual Audition bundle identifiers, surfaces OS/device query errors and distinguishes unverified rates from a hardware mismatch. See [audit/studio-apps/README.md](audit/studio-apps/README.md) for evidence and Mac follow-up steps.
+
 # 3.0.2 clean uninstall
 
 Adds a bundled native review UI, standalone cleanup engine, component inventory, private cache locations, verified process shutdown, optional guarded removal of unused Sawti virtual devices, recoverable Trash moves and partial-failure reports/retry. Recordings, unknown/edited files and shared tools are retained. See [audit/uninstall/README.md](audit/uninstall/README.md) for scope and Mac validation limits.

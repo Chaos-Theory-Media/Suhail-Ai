@@ -417,6 +417,8 @@ def create_app(studio):
 
     @app.get("/api/devices")
     def devices():
-        return jsonify(devices=studio.devices(fresh=True), helper=studio.audio.helper_available())
+        devs = studio.devices(fresh=True)
+        diagnostic = studio.audio.diagnostics() if hasattr(studio.audio, 'diagnostics') else {'simulated': True}
+        return jsonify(devices=devs, diagnostics=diagnostic, helper=studio.audio.helper_available())
 
     return app

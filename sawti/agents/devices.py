@@ -10,21 +10,34 @@ AGENT = "Devices"
 def check(studio, mode, devs):
     F = []
     audio = studio.audio
+    diagnostics = audio.diagnostics() if hasattr(audio, 'diagnostics') else {}
+    query_failed = (diagnostics.get('queried') and not diagnostics.get('helper_ok')
+                    and not diagnostics.get('portaudio_ok') and not diagnostics.get('system_profiler_ok'))
+    if diagnostics.get('helper_error') or diagnostics.get('portaudio_error'):
+        detail = '; '.join(str(diagnostics[k]) for k in ('helper_error', 'portaudio_error') if diagnostics.get(k))
+        F.append(finding('audio_query', AGENT, 'warn', 'Audio query needs attention', detail))
     sc = find_scarlett(devs)
     if not sc:
-        F.append(finding("scarlett", AGENT, "fail", "Scarlett 18i8 not detected",
-                         "Check the USB cable and that the Scarlett is switched on. If it is connected, "
-                         "open Focusrite Control 2 to wake it.", "open_focusrite", "Open Focusrite Control 2"))
+        F.append(finding("scarlett", AGENT, 'warn' if query_failed else 'fail',
+                         'Scarlett status is unknown — audio queries failed' if query_failed else 'Scarlett is not in Sawti’s audio device list',
+                         "If Focusrite Control already sees the interface, leave its rate/routing unchanged. "
+                         "Use Device diagnostics to inspect Sawti’s helper and PortAudio query results.",
+                         "open_focusrite", "Open Focusrite Control"))
+        F.append(finding('scarlett_rate', AGENT, 'manual', 'Scarlett sample rate is unverified',
+                         'No reliable Scarlett rate observation is available. This does not mean the hardware rate is unset.'))
     else:
-        if not sc.get('rate_verified', True):
+        if not sc.get('rate_verified', True) or not sc.get('rate'):
             F.append(finding('scarlett_rate', AGENT, 'manual', 'Scarlett operating rate is unverified',
                              'The helper is unavailable; PortAudio reports a default, not verified current state.'))
         elif sc["rate"] != 48000:
             F.append(finding("scarlett_rate", AGENT, "fail", f"Scarlett is at {sc['rate'] / 1000:g} kHz",
                              "Podcast sessions run at 48 kHz. Mismatched rates cause clicks and drift.",
-                             "set_scarlett_48k", "Set to 48 kHz"))
+                             "set_scarlett_48k" if sc.get('control_available', True) else None, "Set to 48 kHz"))
         else:
             F.append(finding("scarlett", AGENT, "ok", "Scarlett 18i8 connected at 48 kHz"))
+        if sc.get('index') is None:
+            F.append(finding('capture_index', AGENT, 'warn', 'Scarlett is visible, but capture is not yet available',
+                             'Sawti cannot uniquely match it to the capture engine. Inspect Device diagnostics; do not change routing.'))
     if not audio.helper_available():
         F.append(finding("helper", AGENT, "warn", "Automatic device fixes unavailable",
                          "The Sawti audio helper is not installed, so Sawti can check but not create devices. "
@@ -35,6 +48,9 @@ def check(studio, mode, devs):
             F.append(finding("blackhole", AGENT, "fail", "BlackHole 2ch is not installed",
                              "BlackHole carries the Zoom guests into Audition. Ask IT to install "
                              "'BlackHole 2ch' (existential.audio) — it needs an administrator password once."))
+        elif not bh.get('rate_verified', True) or not bh.get('rate'):
+            F.append(finding('blackhole_rate', AGENT, 'manual', 'BlackHole operating rate is unverified',
+                             'A failed/default-only rate query does not authorise changing the rate.'))
         elif bh["rate"] != 48000:
             F.append(finding("blackhole_rate", AGENT, "fail", f"BlackHole is at {bh['rate'] / 1000:g} kHz",
                              "Set to 48 kHz to match the Scarlett.", "set_blackhole_48k", "Set to 48 kHz"))
@@ -53,6 +69,8 @@ def check(studio, mode, devs):
                     F.append(finding("show_input", AGENT, "fail", f"'{SHOW_INPUT_NAME}' is incomplete",
                                      "One of its devices is missing (often after unplugging the Scarlett).",
                                      "repair_show_input", "Rebuild it"))
+                elif not agg.get('rate_verified', True) or not agg.get('rate'):
+                    F.append(finding('show_input_rate', AGENT, 'manual', 'Show input operating rate is unverified'))
                 elif agg["rate"] != 48000:
                     F.append(finding("show_input_rate", AGENT, "fail", f"'{SHOW_INPUT_NAME}' is not at 48 kHz", "",
                                      "set_show_input_48k", "Set to 48 kHz"))
@@ -72,9 +90,9 @@ def check(studio, mode, devs):
                          "Untick 'Automatically adjust microphone volume'. Turn on 'Original sound for musicians'."))
         F.append(finding("mix_minus", AGENT, "manual", "Guest cannot hear themselves (mix-minus)",
                          "Ask the Zoom guest to speak: they must not hear their own voice coming back."))
-    F.append(finding("focusrite_preset", AGENT, "manual", "Focusrite Control 2 routing",
-                     "Routing lives in the Scarlett. If anyone changed it, load the saved show preset in "
-                     "Focusrite Control 2 (outputs 1–2 speakers, 3–4 headphone amp)."))
+    F.append(finding("focusrite_preset", AGENT, "manual", "Focusrite Control routing",
+                     "Routing lives in the Scarlett. Inspect the existing preset in Focusrite Control. "
+                     "Do not load or change a preset during production without explicit authorisation."))
     F.append(finding("talkback", AGENT, "manual", "Talkback stays private",
                      "Speak into the talkback mic: you hear it in the headphones, it does not appear on any "
                      "recorded track or in Zoom. (The pre-test checks the recording side automatically.)"))

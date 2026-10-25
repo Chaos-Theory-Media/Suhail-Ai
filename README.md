@@ -1,4 +1,6 @@
-# Sawti 3.0.2 (صوتي): studio agents for IMI podcasts
+# Sawti 3.0.3 (صوتي): studio agents for IMI podcasts
+
+**Studio app/device fixes (3.0.3):** Prepare now has **Open studio apps** and **Show device diagnostics**. Scarlett 18i8 3rd Generation uses **Focusrite Control**. Unread rates are reported as **unverified**, not unset. See [Mac integration feedback and update steps](audit/studio-apps/README.md).
 
 **Clean uninstall:** The current installer also creates **Uninstall Sawti.app** on the Desktop and in Applications. It reviews components, preserves recordings, and moves identified Sawti files to Trash. See [clean uninstall and its validation limits](audit/uninstall/README.md).
 
@@ -76,8 +78,8 @@ so practice runs don't affect what Sawti learns about real shows.
 ## What Sawti cannot do (hardware and vendor limits)
 * **The gain knobs on the Scarlett 18i8 are analogue**, so no software can turn them. Sawti tells you which
   knob to turn and by how many dB. It confirms the result in the sound check. The inline leveler DSP remains available in simulation. **Real inline output is blocked until qualified**, because stopping Sawti must not break a production audio path.
-* **Focusrite Control 2 has no public interface for other apps.** Routing is stored in the Scarlett, so save a
-  preset per show in Focusrite Control 2. Sawti's pre-test observes monitored inputs; it does not prove Audition track routing or Zoom talkback privacy. Verify those manually.
+* **Focusrite Control has no verified control integration in Sawti for other apps.** Routing is stored in the Scarlett, so save a
+  preset per show in Focusrite Control. Sawti's pre-test observes monitored inputs; it does not prove Audition track routing or Zoom talkback privacy. Verify those manually.
 * **Audition has no automation interface on macOS.** Sawti uses your template files and presses Record or Stop
   with keystrokes after you confirm.
 * **Zoom does not reveal which audio devices it is using.** Sawti shows the exact settings to choose and asks
