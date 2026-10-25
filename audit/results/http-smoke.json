@@ -1,0 +1,52 @@
+[
+  {
+    "path": "/",
+    "method": "GET",
+    "status": 200
+  },
+  {
+    "path": "/reference_design.png",
+    "method": "GET",
+    "status": 200
+  },
+  {
+    "path": "/api/power",
+    "method": "GET",
+    "status": 200
+  },
+  {
+    "path": "/api/status",
+    "method": "GET",
+    "status": 503
+  },
+  {
+    "path": "/api/power/on",
+    "method": "POST",
+    "status": 200
+  },
+  {
+    "path": "/api/status",
+    "method": "GET",
+    "status": 200
+  },
+  {
+    "path": "/api/chat",
+    "method": "POST",
+    "status": 200
+  },
+  {
+    "path": "/api/preflight/local",
+    "method": "GET",
+    "status": 200
+  },
+  {
+    "path": "/api/power/off",
+    "method": "POST",
+    "status": 200
+  },
+  {
+    "path": "/api/status",
+    "method": "GET",
+    "status": 503
+  }
+]

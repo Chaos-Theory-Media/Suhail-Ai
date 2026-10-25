@@ -1,0 +1,29 @@
+{
+  "archive": "Sawti_2_2_Mac_Installer.zip",
+  "archive_sha256": "32e917b4a5896ba0454f6afcec0f248010f11aa81c38b4d7c12eeae9c9946a84",
+  "omitted": "10 generated __pycache__ .pyc files",
+  "source_sha256": {
+    "INSTALL_SAWTI.command": "1b38231e26e97fda1c2bebffbeec1dbff2e54b70f90697a8900c83e4fe3640c8",
+    "README.md": "8fe9e9cb96da02b36cf02ac786819f8ee216aa5e6713009bf539a635596fca6c",
+    "README_INSTALL_FIRST.txt": "3fc558b2321df08a63499857aa8258485c17378674c3e66111faa898585a7b97",
+    "START_SAWTI.command": "6afbf6a3923fd3ab57d57119b1299b275f52c0e8ca956df7448e9d04d153b881",
+    "app.py": "c6e36ed30f5eeafbdcca1cad18ac687f8786c373a5ed0e9269fa46ab4adbe29d",
+    "profiles/local.json": "51b03599053fe604c748d0cb6cbb01d280e4817350ccad16674b2836f22d6f33",
+    "profiles/zoom.json": "13f01bd7edcaf08d030d84820e44003cfa3e33271f4447a58081ad4a084f1c1e",
+    "requirements-voice.txt": "288c92ddb28ab44ef083e66f9c5966bc0f67572c89eb43ab00f97ac2e0cbbc95",
+    "requirements.txt": "7d9b98305b89bb6c40b81ad43d386817406aa613b81830b635bf427849094a89",
+    "sawti.py": "dd3515ed95e72c82d100274f879c6997da86d4342bb67883930ee774896563a0",
+    "start.command": "3010444fdaf99050ceb0117e66f9ec32bc343d73963aae998f172462ec1be2f8",
+    "static/index.html": "19165d0c80f9312829821ec433bb5106c6c008e12acfb9ec496f2f301c4ae882",
+    "static/reference_design.png": "75a16ab6bf351d5660918180670aec0ea7405e341aaee56222998d24f3956ddb",
+    "studio/__init__.py": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "studio/engine.py": "6be0af05859bd370d017c9be30f38f725ddcdf565970f10a36c361e2aa5e86b4",
+    "studio/health.py": "72a476869c49ec33515bc4d97c78af612bd324de1c7f2ac4ecc178d7c79dd99f",
+    "studio/learning.py": "462c5447cfea435addd6f77e5ab106c65f942fcd9b012a6c4b7eb228272c68e5",
+    "studio/lifecycle.py": "fd95bcd5da8d686c47dc5dda59b352c44357d2b770778e164022ed9eaa39a1c7",
+    "tests/test_engine.py": "1dadea7dfd4370ab52d70521d0b786322550e0ece01ee325ce6ec7064da3f392",
+    "tests/test_learning_health.py": "979189470665fe7ab8183707c417f4bd982f79ad0a598a6f6d7c21f4b90f219e",
+    "tests/test_power.py": "8367ac39ff38a702f375f59a72768f9e51bc31a5059106eb1932b72ce0aeb771",
+    "tests/test_sawti.py": "d7f116a00191ac8a301778f79fa40eb977baa5970b72eaa161aba310c6eb310c"
+  }
+}

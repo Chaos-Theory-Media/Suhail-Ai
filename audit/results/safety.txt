@@ -1,0 +1,89 @@
+test_arabic_rule_prompt_receives_arabic_answer (test_safety_contracts.SafetyAudit.test_arabic_rule_prompt_receives_arabic_answer) ... FAIL
+test_cross_origin_form_cannot_switch_power_off (test_safety_contracts.SafetyAudit.test_cross_origin_form_cannot_switch_power_off) ... FAIL
+test_deletion_removes_presenter_and_embedding (test_safety_contracts.SafetyAudit.test_deletion_removes_presenter_and_embedding) ... ok
+test_enrolment_requires_explicit_consent (test_safety_contracts.SafetyAudit.test_enrolment_requires_explicit_consent) ... ok
+test_exact_selected_model_tag_must_be_installed (test_safety_contracts.SafetyAudit.test_exact_selected_model_tag_must_be_installed) ... FAIL
+test_health_audit_is_connected_to_agent_endpoint (test_safety_contracts.SafetyAudit.test_health_audit_is_connected_to_agent_endpoint) ... FAIL
+test_invalid_mode_does_not_enable_power (test_safety_contracts.SafetyAudit.test_invalid_mode_does_not_enable_power) ... ok
+test_off_blocks_diagnostic_and_mutation_endpoints (test_safety_contracts.SafetyAudit.test_off_blocks_diagnostic_and_mutation_endpoints) ... ok
+test_off_terminates_only_owned_child (test_safety_contracts.SafetyAudit.test_off_terminates_only_owned_child) ... ok
+test_off_wins_against_already_admitted_meter_start (test_safety_contracts.SafetyAudit.test_off_wins_against_already_admitted_meter_start) ... FAIL
+test_on_does_not_automatically_open_meter_or_spawn_missing_ollama (test_safety_contracts.SafetyAudit.test_on_does_not_automatically_open_meter_or_spawn_missing_ollama) ... ok
+test_recording_state_is_explicit_in_status (test_safety_contracts.SafetyAudit.test_recording_state_is_explicit_in_status) ... FAIL
+test_rule_diagnostics_do_not_call_language_model (test_safety_contracts.SafetyAudit.test_rule_diagnostics_do_not_call_language_model) ... ok
+test_speaker_matching_is_never_authentication (test_safety_contracts.SafetyAudit.test_speaker_matching_is_never_authentication) ... ok
+test_stale_meter_is_not_reported_as_healthy (test_safety_contracts.SafetyAudit.test_stale_meter_is_not_reported_as_healthy) ... FAIL
+test_unknown_speaker_stays_unnamed (test_safety_contracts.SafetyAudit.test_unknown_speaker_stays_unnamed) ... ok
+test_voice_enrolment_requires_registered_consent (test_safety_contracts.SafetyAudit.test_voice_enrolment_requires_registered_consent) ... ok
+test_zoom_profile_includes_guest_return_channels (test_safety_contracts.SafetyAudit.test_zoom_profile_includes_guest_return_channels) ... FAIL
+
+======================================================================
+FAIL: test_arabic_rule_prompt_receives_arabic_answer (test_safety_contracts.SafetyAudit.test_arabic_rule_prompt_receives_arabic_answer)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/Suhail-Ai/audit/checks/test_safety_contracts.py", line 166, in test_arabic_rule_prompt_receives_arabic_answer
+    self.assertTrue(any('\u0600' <= c <= '\u06ff' for c in result['reply']), 'Arabic trigger returns an English rule response')
+AssertionError: False is not true : Arabic trigger returns an English rule response
+
+======================================================================
+FAIL: test_cross_origin_form_cannot_switch_power_off (test_safety_contracts.SafetyAudit.test_cross_origin_form_cannot_switch_power_off)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/Suhail-Ai/audit/checks/test_safety_contracts.py", line 122, in test_cross_origin_form_cannot_switch_power_off
+    self.assertIn(response.status_code, (400, 403), 'No Origin/CSRF check protects power control')
+AssertionError: 200 not found in (400, 403) : No Origin/CSRF check protects power control
+
+======================================================================
+FAIL: test_exact_selected_model_tag_must_be_installed (test_safety_contracts.SafetyAudit.test_exact_selected_model_tag_must_be_installed)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/Suhail-Ai/audit/checks/test_safety_contracts.py", line 116, in test_exact_selected_model_tag_must_be_installed
+    self.assertFalse(sawti.ollama_status()['available'], 'A different model size is accepted as ready')
+AssertionError: True is not false : A different model size is accepted as ready
+
+======================================================================
+FAIL: test_health_audit_is_connected_to_agent_endpoint (test_safety_contracts.SafetyAudit.test_health_audit_is_connected_to_agent_endpoint)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/Suhail-Ai/audit/checks/test_safety_contracts.py", line 174, in test_health_audit_is_connected_to_agent_endpoint
+    health.assert_called_once()
+  File "/opt/codex/runtimes/codex-primary-runtime/dependencies/python/lib/python3.12/unittest/mock.py", line 928, in assert_called_once
+    raise AssertionError(msg)
+AssertionError: Expected 'audit' to have been called once. Called 0 times.
+
+======================================================================
+FAIL: test_off_wins_against_already_admitted_meter_start (test_safety_contracts.SafetyAudit.test_off_wins_against_already_admitted_meter_start)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/Suhail-Ai/audit/checks/test_safety_contracts.py", line 152, in test_off_wins_against_already_admitted_meter_start
+    self.assertFalse(self.monitor.snapshot()['running'], 'An admitted start reopens capture after OFF')
+AssertionError: True is not false : An admitted start reopens capture after OFF
+
+======================================================================
+FAIL: test_recording_state_is_explicit_in_status (test_safety_contracts.SafetyAudit.test_recording_state_is_explicit_in_status)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/Suhail-Ai/audit/checks/test_safety_contracts.py", line 157, in test_recording_state_is_explicit_in_status
+    self.assertIn('recording_state', result, 'No recording/idle/unknown state is exposed')
+AssertionError: 'recording_state' not found in {'channels': [], 'device': None, 'error': None, 'last_audio_age': None, 'running': False, 'sample_rate': None} : No recording/idle/unknown state is exposed
+
+======================================================================
+FAIL: test_stale_meter_is_not_reported_as_healthy (test_safety_contracts.SafetyAudit.test_stale_meter_is_not_reported_as_healthy)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/Suhail-Ai/audit/checks/test_safety_contracts.py", line 107, in test_stale_meter_is_not_reported_as_healthy
+    self.assertNotEqual(meter['state'], 'pass', 'Stale capture is currently shown as pass')
+AssertionError: 'pass' == 'pass' : Stale capture is currently shown as pass
+
+======================================================================
+FAIL: test_zoom_profile_includes_guest_return_channels (test_safety_contracts.SafetyAudit.test_zoom_profile_includes_guest_return_channels)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/Suhail-Ai/audit/checks/test_safety_contracts.py", line 161, in test_zoom_profile_includes_guest_return_channels
+    self.assertGreater(p['required_input_channels'], 4, 'Current profile captures only the four assumed Scarlett channels')
+AssertionError: 4 not greater than 4 : Current profile captures only the four assumed Scarlett channels
+
+----------------------------------------------------------------------
+Ran 18 tests in 0.122s
+
+FAILED (failures=8)

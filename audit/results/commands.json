@@ -1,0 +1,35 @@
+{
+  "original": {
+    "command": [
+      ".venv/bin/python",
+      "audit/run_checks.py",
+      "original"
+    ],
+    "exit_code": 0
+  },
+  "safety": {
+    "command": [
+      ".venv/bin/python",
+      "audit/run_checks.py",
+      "audit"
+    ],
+    "exit_code": 1
+  },
+  "browser": {
+    "command": [
+      "node",
+      "--test",
+      "audit/checks/browser_safety.cjs"
+    ],
+    "exit_code": 1
+  },
+  "dependencies": {
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "pip",
+      "check"
+    ],
+    "exit_code": 0
+  }
+}

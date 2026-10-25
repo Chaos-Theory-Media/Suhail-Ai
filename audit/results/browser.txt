@@ -1,0 +1,48 @@
+✖ OFF prevents browser microphone acquisition (4.010111ms)
+✖ OFF cancels microphone permission requests already pending (2.602402ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 116.354557
+
+✖ failing tests:
+
+test at audit/checks/browser_safety.cjs:36:1
+✖ OFF prevents browser microphone acquisition (4.010111ms)
+  AssertionError [ERR_ASSERTION]: OFF UI still invokes getUserMedia
+
+  1 !== 0
+
+      at TestContext.<anonymous> (/workspace/Suhail-Ai/audit/checks/browser_safety.cjs:39:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at audit/checks/browser_safety.cjs:42:1
+✖ OFF cancels microphone permission requests already pending (2.602402ms)
+  AssertionError [ERR_ASSERTION]: Late permission grant starts recording after OFF
+  + actual - expected
+
+  + 'recording'
+  - 'inactive'
+
+      at TestContext.<anonymous> (/workspace/Suhail-Ai/audit/checks/browser_safety.cjs:51:10)
+      at async Test.run (node:internal/test_runner/test:1389:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:960:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'recording',
+    expected: 'inactive',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

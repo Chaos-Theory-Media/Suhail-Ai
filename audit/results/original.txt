@@ -1,0 +1,17 @@
+test_matching (test_engine.EngineTests.test_matching) ... ok
+test_missing (test_engine.EngineTests.test_missing) ... ok
+test_profiles (test_engine.EngineTests.test_profiles) ... ok
+test_missing_hardware (test_learning_health.HealthLearningTests.test_missing_hardware) ... ok
+test_name_shape (test_learning_health.HealthLearningTests.test_name_shape) ... ok
+test_zoom_includes_selection_check (test_learning_health.HealthLearningTests.test_zoom_includes_selection_check) ... ok
+test_default_off (test_power.PowerTests.test_default_off) ... ok
+test_invalid_mode (test_power.PowerTests.test_invalid_mode) ... ok
+test_on_off_without_external_services (test_power.PowerTests.test_on_off_without_external_services) ... ok
+test_fault_help (test_sawti.SawtiTests.test_fault_help) ... ok
+test_missing_hardware (test_sawti.SawtiTests.test_missing_hardware) ... ok
+test_zoom_help (test_sawti.SawtiTests.test_zoom_help) ... ok
+
+----------------------------------------------------------------------
+Ran 12 tests in 0.009s
+
+OK
