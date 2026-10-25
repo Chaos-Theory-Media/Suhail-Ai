@@ -24,6 +24,10 @@ CASES = {
     "Sawti, what should we do if a microphone clips?": "clip",
     "Sawti, check the remote guest return level": "guest_level",
     "Start recording now": "record_start",
+    "Sawti please test the mics and if all is good count me down and start recording": "guided_recording",
+    "Start recording after you check the microphones": "guided_recording",
+    "Count down and begin recording": "guided_recording",
+    "صوتي، افحص الميكروفونات ثم ابدأ التسجيل": "guided_recording",
     "Stop the recording": "record_stop",
     "Prepare and open today's session": "session",
     "Master the episode to -16 LUFS": "master",
@@ -35,6 +39,25 @@ CASES = {
 
 
 class ChatRoutingTests(unittest.TestCase):
+    def test_conditional_recording_never_offers_transport(self):
+        from unittest.mock import Mock
+        from sawti.agents.chat import answer
+        studio = Mock()
+        studio.check_all.return_value = []
+        studio.events.return_value = []
+        studio.observations.return_value = []
+        studio.settings.return_value = {}
+        studio.mode = 'local'
+        for prompt in (
+            'Sawti please test the mics and if all is good count me down and start recording',
+            'صوتي، افحص الميكروفونات ثم ابدأ التسجيل',
+        ):
+            with self.subTest(prompt=prompt):
+                result = answer(studio, prompt)
+                self.assertEqual(result['intent'], 'guided_recording')
+                self.assertEqual([a['action'] for a in result['actions']], ['pretest'])
+                studio.apply.assert_not_called()
+
     def test_every_suggested_prompt_routes_correctly(self):
         wrong = {q: (detect(q), want) for q, want in CASES.items() if detect(q) != want}
         self.assertEqual(wrong, {})

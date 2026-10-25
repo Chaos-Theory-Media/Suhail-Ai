@@ -24,9 +24,11 @@ def _has(t, *words):
     return any(re.search(w, t) for w in words)
 
 
+RECORD_START_PATTERNS = [r"\b(start|begin) (the )?record", r"\bpress record\b", r"ابدأ التسجيل", r"سجل الآن"]
+
 INTENTS = [
     # (name, patterns) — first match wins, most specific first
-    ("record_start", [r"\b(start|begin) (the )?record", r"\bpress record\b", r"ابدأ التسجيل", r"سجل الآن"]),
+    ("record_start", RECORD_START_PATTERNS),
     ("record_stop", [r"\bstop (the )?record", r"أوقف التسجيل"]),
     ("pretest", [r"\bpre-?test\b", r"\bsound ?check\b", r"\bwhat should (we|i) test\b", r"\btest before\b",
                  r"اختبار", r"فحص الصوت"]),
@@ -54,6 +56,12 @@ INTENTS = [
 
 def detect(text):
     t = normalise(text)
+    # A conditional sequence must not collapse into the final transport command.
+    # Until that workflow is implemented, explain the gap and offer pre-test only.
+    if (_has(t, *RECORD_START_PATTERNS) and
+            _has(t, r"\b(test|check|pre-?test|count\s*down|countdown)\b",
+                 r"اختب", r"افحص", r"فحص", r"عد تنازلي", r"العد التنازلي")):
+        return 'guided_recording'
     for name, pats in INTENTS:
         if _has(t, *pats):
             return name
@@ -88,7 +96,12 @@ def answer(studio, text):
     snap = studio.monitor.snapshot()
     reply, actions = "", []
 
-    if intent == "ready":
+    if intent == 'guided_recording':
+        reply = ('The complete test, countdown and record workflow is not implemented yet. '
+                 'I will not skip your checks or send Record. Start the guided pre-test, '
+                 'then verify the Audition session and armed inputs before separately authorising recording.')
+        actions = [dict(action='pretest', label='Start the guided pre-test')]
+    elif intent == "ready":
         if issues:
             reply = (f"{len(issues)} thing(s) need attention: " + "; ".join(f["title"].rstrip(".") for f in issues[:5]) +
                      ". " + ("Use the buttons to fix them, then run the pre-test." if acts(issues) else
@@ -190,6 +203,7 @@ def answer(studio, text):
                  "press Record/Stop, check Zoom, or master the episode.")
     if ar:
         translations = {
+            'guided_recording': 'تسلسل اختبار الميكروفونات والعد التنازلي وبدء التسجيل غير مكتمل بعد. لن أتجاوز الاختبار أو أرسل أمر التسجيل. ابدأ الاختبار الموجّه ثم تحقق من جلسة أوديشن ومدخلات المسارات قبل الموافقة المنفصلة على التسجيل.',
             'ready': f"يوجد {len(issues)} تنبيه يحتاج إلى المراجعة. افحص النتائج وأكمل الاختبار قبل التسجيل.",
             'pretest': 'الاختبار يفحص الميكروفونات والتوك باك وعودة ضيف زوم. لا يغيّر التوجيه ولا يثبت عزل التوك باك في كل التطبيقات.',
             'levels': 'شغّل المقاييس واطلب من كل مشارك الكلام. راجع مستوى الصوت والذروة لكل مدخل؛ لا أستطيع تدوير مقابض الكسب.',
