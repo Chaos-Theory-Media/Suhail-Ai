@@ -1,0 +1,15 @@
+✔ shell quoting preserves spaces, quotes and literal substitutions (4.305919ms)
+✔ cancel before idle authorisation makes no stop or delete call (1.858309ms)
+✔ cancel component selection never removes files (0.871134ms)
+✔ unverified process stops native uninstall before file removal (0.740748ms)
+✔ missing interpreters fail without cleanup (0.769429ms)
+✔ device removal requires its separate native confirmation (0.858381ms)
+✔ reviewed normal flow calls the constrained cleanup engine (0.731435ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 69.220163

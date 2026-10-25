@@ -1,5 +1,5 @@
 #!/bin/zsh
-# Sawti 3.0 installer for Apple-silicon Macs (macOS 14 Sonoma or newer).
+# Sawti 3.0.2 installer for Apple-silicon Macs (macOS 14 Sonoma or newer).
 # Safe to run again at any time: it repairs or updates what is missing and keeps settings and learning.
 #
 # Installs, all inside ~/Library/Application Support/Sawti (nothing in /Applications is changed):
@@ -34,7 +34,7 @@ fail() { print "\n✖ $1\n  Setup stopped; earlier completed steps may remain. F
 yes_no() { local a; read "a?$1 [y/n]: "; [[ "$a" == [yY]* ]]; }
 
 print "────────────────────────────────────────────"
-print " Sawti 3.0 · studio agents · installer"
+print " Sawti 3.0.2 · studio agents · installer"
 print "────────────────────────────────────────────"
 [[ "$(uname -s)" == "Darwin" ]] || fail "This installer is for macOS."
 [[ "$(uname -m)" == "arm64" ]] || fail "An Apple-silicon Mac (M1 or newer) is required."
@@ -59,6 +59,7 @@ yes_no "Install offline voice commands (speech-to-text, about 1.5 GB more)?" && 
 step "Python and libraries"
 UV="$RUNTIME/uv/uv"
 export UV_PYTHON_INSTALL_DIR="$RUNTIME/python" UV_CACHE_DIR="$SUPPORT/cache/uv"
+export PIP_CACHE_DIR="$SUPPORT/cache/pip" HF_HOME="$SUPPORT/cache/huggingface"
 if [[ ! -x "$UV" ]]; then
   TMP=$(mktemp -d)
   if curl --fail --location --retry 2 --silent --show-error \
@@ -172,7 +173,7 @@ if (( WANT_VOICE )); then
     if [[ -x "$UV" ]]; then "$UV" pip install --python "$VENV/bin/python" -r "$HERE/requirements-voice.txt"
     else "$VENV/bin/python" -m pip install -r "$HERE/requirements-voice.txt"; fi \
       && {
-        "$VENV/bin/python" -c 'from faster_whisper import WhisperModel; WhisperModel("small", device="cpu", compute_type="int8"); from resemblyzer import VoiceEncoder; VoiceEncoder()' \
+        "$VENV/bin/python" -c 'import sys; from faster_whisper import WhisperModel; WhisperModel("small", device="cpu", compute_type="int8", download_root=sys.argv[1]); from resemblyzer import VoiceEncoder; VoiceEncoder()' "$MODELS/whisper" \
           && ok "Voice packages and models cached; offline operation still needs a studio test." \
           || warn "Voice model preloading failed. Voice is not ready for offline use."
       } || warn "Voice features failed to install; Sawti works without them."
@@ -202,8 +203,37 @@ if [[ -e "$APP" ]]; then
   mv "$APP" "$APPDIR/Sawti-backup-$(date +%Y%m%d-%H%M%S)-$RANDOM.app" || fail "Could not preserve the previous Sawti app."
 fi
 mv "$STAGED_APP" "$APP" || fail "Could not activate the new launcher."
-osascript -e "tell application \"Finder\" to make alias file to (POSIX file \"$APP\") at desktop" >/dev/null 2>&1 \
-  && ok "Sawti app in ~/Applications, alias on the Desktop" || ok "Sawti app in ~/Applications"
+if [[ ! -e "$HOME/Desktop/Sawti.app" && ! -L "$HOME/Desktop/Sawti.app" ]]; then
+  ln -s "$APP" "$HOME/Desktop/Sawti.app"
+else
+  warn "Existing Desktop/Sawti.app retained. The installed app is in ~/Applications."
+fi
+
+# Standalone uninstaller: native dialogs and a stdlib-only engine bundled with
+# the app, so it can still run when Sawti packages or source files are broken.
+UNINSTALL_APP="$APPDIR/Uninstall Sawti.app"
+if [[ -e "$UNINSTALL_APP" ]]; then
+  EXISTING_ID=$(/usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$UNINSTALL_APP/Contents/Info.plist" 2>/dev/null || true)
+  [[ "$EXISTING_ID" == "com.imi.sawti.uninstall" ]] || fail "An unrelated Uninstall Sawti.app exists; preserve it before installing."
+  mv "$UNINSTALL_APP" "$APPDIR/Sawti-backup-uninstaller-$(date +%Y%m%d-%H%M%S)-$RANDOM.app" || fail "Could not preserve the previous uninstaller."
+fi
+osacompile -o "$UNINSTALL_APP" \
+  -e 'set resourcePath to (POSIX path of (path to me)) & "Contents/Resources/"' \
+  -e 'set sourceRoot to do shell script "/bin/cat " & quoted form of (resourcePath & "source-root")' \
+  -e 'do shell script "/usr/bin/osascript -l JavaScript " & quoted form of (resourcePath & "uninstall-ui.js") & " " & quoted form of sourceRoot & " " & quoted form of (resourcePath & "uninstall.py")' \
+  || fail "Could not create the standalone uninstaller."
+mkdir -p "$UNINSTALL_APP/Contents/Resources"
+cp "$HERE/helpers/uninstall.py" "$HERE/helpers/uninstall-ui.js" "$UNINSTALL_APP/Contents/Resources/" || fail "Could not copy uninstaller resources."
+print -r -- "$HERE" > "$UNINSTALL_APP/Contents/Resources/source-root"
+plutil -replace CFBundleIdentifier -string "com.imi.sawti.uninstall" "$UNINSTALL_APP/Contents/Info.plist"
+plutil -replace CFBundleName -string "Uninstall Sawti" "$UNINSTALL_APP/Contents/Info.plist"
+codesign --force --deep --sign - "$UNINSTALL_APP" >/dev/null 2>&1 || fail "Could not sign the local uninstaller."
+if [[ ! -e "$HOME/Desktop/Uninstall Sawti.app" && ! -L "$HOME/Desktop/Uninstall Sawti.app" ]]; then
+  ln -s "$UNINSTALL_APP" "$HOME/Desktop/Uninstall Sawti.app"
+fi
+"$VENV/bin/python" -I "$HERE/helpers/uninstall.py" register --source "$HERE" --home "$HOME" >/dev/null \
+  || fail "Could not save the uninstall inventory."
+ok "Standalone uninstaller and component inventory ready"
 chmod +x "$HERE"/*.command "$HERE/launch.sh"
 
 print "\n────────────────────────────────────────────"

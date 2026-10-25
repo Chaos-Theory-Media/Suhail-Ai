@@ -1,3 +1,7 @@
+# 3.0.2 clean uninstall
+
+Adds a bundled native review UI, standalone cleanup engine, component inventory, private cache locations, verified process shutdown, optional guarded removal of unused Sawti virtual devices, recoverable Trash moves and partial-failure reports/retry. Recordings, unknown/edited files and shared tools are retained. See [audit/uninstall/README.md](audit/uninstall/README.md) for scope and Mac validation limits.
+
 # 3.0.1 QA improvements
 
 See [audit/qa/REPORT.md](audit/qa/REPORT.md) for evidence, limitations and remaining release gates. The original 3.0 claims below are retained as historical design notes; they are not independent validation.

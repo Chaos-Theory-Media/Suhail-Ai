@@ -1,0 +1,51 @@
+{
+  "python": {
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-v"
+    ],
+    "exit_code": 0
+  },
+  "browser": {
+    "command": [
+      "node",
+      "--test",
+      "tests/browser_safety.cjs"
+    ],
+    "exit_code": 0
+  },
+  "uninstall-ui": {
+    "command": [
+      "node",
+      "--test",
+      "tests/uninstall_ui.cjs"
+    ],
+    "exit_code": 0
+  },
+  "http": {
+    "command": [
+      ".venv/bin/python",
+      "tests/http_smoke.py",
+      "--output",
+      "audit/uninstall/results/http-smoke.json"
+    ],
+    "exit_code": 0
+  },
+  "syntax": {
+    "command": [
+      "zsh",
+      "-n",
+      "INSTALL_SAWTI.command",
+      "launch.sh",
+      "START_SAWTI.command",
+      "SIMULATE_SAWTI.command",
+      "UNINSTALL_SAWTI.command"
+    ],
+    "exit_code": 0
+  }
+}

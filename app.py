@@ -2,6 +2,9 @@
 import os
 import socket
 import sys
+import atexit
+import json
+from pathlib import Path
 
 if "--simulate" in sys.argv:
     os.environ["SAWTI_SIMULATE"] = "1"
@@ -22,13 +25,23 @@ def main():
         print(f"Port {PORT} is occupied; this process did not start. Verify the existing listener manually.")
         return 1
     studio = Studio()
+    from sawti import paths
+    from sawti.lifecycle import _identity
+    registry = paths.run_dir() / 'server.json'
+    registry.write_text(json.dumps(dict(pid=os.getpid(), identity=_identity(os.getpid()),
+                                        source=str(Path(__file__).resolve().parent))))
+    registry.chmod(0o600)
+    atexit.register(lambda: registry.unlink(missing_ok=True))
     studio.lifecycle.install_handlers()
     app = create_app(studio)
     print(f"Sawti {VERSION}{' (simulation)' if studio.audio.simulated else ''}: http://127.0.0.1:{PORT}", flush=True)
     try:
         app.run(host="127.0.0.1", port=PORT, debug=False, threaded=True, use_reloader=False)
     finally:
-        studio.power_off()
+        try:
+            studio.power_off()
+        finally:
+            registry.unlink(missing_ok=True)
     return 0
 
 

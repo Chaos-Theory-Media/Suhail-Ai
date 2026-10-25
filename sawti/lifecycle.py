@@ -39,7 +39,7 @@ def _identity(pid):
     try:
         import psutil
         p = psutil.Process(pid)
-        return dict(pid=pid, created=p.create_time(), command=p.cmdline(), uid=p.uids().real)
+        return dict(pid=pid, created=p.create_time(), command=p.cmdline(), uid=p.uids().real, exe=p.exe())
     except Exception:
         return None
 

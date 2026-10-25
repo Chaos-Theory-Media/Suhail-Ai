@@ -47,6 +47,29 @@ func uint32Property(_ id: AudioObjectID, _ selector: AudioObjectPropertySelector
     return AudioObjectGetPropertyData(id, &a, 0, nil, &size, &value) == noErr ? value : 0
 }
 
+func checkedUInt32(_ id: AudioObjectID, _ selector: AudioObjectPropertySelector) throws -> UInt32 {
+    var a = address(selector)
+    var value: UInt32 = 0
+    var size = UInt32(MemoryLayout<UInt32>.size)
+    guard AudioObjectGetPropertyData(id, &a, 0, nil, &size, &value) == noErr else {
+        throw Failure(message: "Cannot verify audio-device activity/default state; device retained")
+    }
+    return value
+}
+
+func checkedSubDevices(_ id: AudioObjectID) throws -> [String] {
+    var a = address(kAudioAggregateDevicePropertyFullSubDeviceList)
+    var value: Unmanaged<CFArray>? = nil
+    var size = UInt32(MemoryLayout<Unmanaged<CFArray>?>.size)
+    let status = withUnsafeMutablePointer(to: &value) { ptr in
+        AudioObjectGetPropertyData(id, &a, 0, nil, &size, ptr)
+    }
+    guard status == noErr, let v = value else {
+        throw Failure(message: "Cannot verify aggregate references; device retained")
+    }
+    return (v.takeRetainedValue() as NSArray).compactMap { $0 as? String }
+}
+
 func sampleRate(_ id: AudioObjectID) -> Double {
     var a = address(kAudioDevicePropertyNominalSampleRate)
     var value: Float64 = 0
@@ -119,6 +142,12 @@ func listDevices() -> [String: Any] {
     var devices: [[String: Any]] = []
     for id in deviceIDs() {
         let transport = transportName(uint32Property(id, kAudioDevicePropertyTransportType))
+        let running: Any
+        if let observed = try? checkedUInt32(id, kAudioDevicePropertyDeviceIsRunningSomewhere) {
+            running = observed != 0
+        } else {
+            running = NSNull()
+        }
         devices.append([
             "id": Int(id),
             "uid": stringProperty(id, kAudioDevicePropertyDeviceUID),
@@ -133,6 +162,7 @@ func listDevices() -> [String: Any] {
             "default_input": id == defIn,
             "default_output": id == defOut,
             "default_system": id == defSys,
+            "running_somewhere": running,
         ])
     }
     return ["ok": true, "devices": devices]
@@ -158,9 +188,36 @@ func createAggregate(name: String, uid: String, main: String, subs: [String], st
     return ["ok": true, "id": Int(newID), "existed": false]
 }
 
-func destroy(uid: String) throws -> [String: Any] {
+func destroy(uid: String, ifUnused: Bool = false) throws -> [String: Any] {
     guard uid.hasPrefix("com.imi.sawti.") else { throw Failure(message: "Sawti only removes devices it created") }
     guard let id = findDevice(uid: uid) else { return ["ok": true, "removed": false] }
+    if ifUnused {
+        guard uid == "com.imi.sawti.show-input" || uid == "com.imi.sawti.zoom-speaker" else {
+            throw Failure(message: "Uninstaller only removes the two reviewed Sawti devices")
+        }
+        for selector in [kAudioHardwarePropertyDefaultInputDevice, kAudioHardwarePropertyDefaultOutputDevice,
+                         kAudioHardwarePropertyDefaultSystemOutputDevice] {
+            guard try checkedUInt32(systemObject, selector) != id else {
+                throw Failure(message: "Device is a system default; retained to protect routing")
+            }
+        }
+        guard try checkedUInt32(id, kAudioDevicePropertyDeviceIsRunningSomewhere) == 0 else {
+            throw Failure(message: "Device is in use; retained to protect audio")
+        }
+        let all = deviceIDs()
+        guard !all.isEmpty else { throw Failure(message: "Cannot enumerate references; device retained") }
+        for other in all where other != id {
+            if uint32Property(other, kAudioDevicePropertyTransportType) == kAudioDeviceTransportTypeAggregate {
+                guard !(try checkedSubDevices(other)).contains(uid) else {
+                    throw Failure(message: "Device is referenced by another aggregate; retained")
+                }
+            }
+        }
+        // Recheck activity after reference enumeration, immediately before HAL mutation.
+        guard try checkedUInt32(id, kAudioDevicePropertyDeviceIsRunningSomewhere) == 0 else {
+            throw Failure(message: "Device became active; retained")
+        }
+    }
     let status = AudioHardwareDestroyAggregateDevice(id)
     if status != noErr { throw Failure(message: "Could not remove device (status \(status))") }
     return ["ok": true, "removed": true]
@@ -234,7 +291,7 @@ do {
         emit(try createAggregate(name: name, uid: uid, main: main, subs: subs, stacked: args.contains("--stacked")))
     case "destroy":
         guard let uid = option("--uid", args) else { throw Failure(message: "destroy needs --uid") }
-        emit(try destroy(uid: uid))
+        emit(try destroy(uid: uid, ifUnused: args.contains("--if-unused")))
     case "set-rate":
         guard let uid = option("--uid", args), let r = option("--rate", args), let rate = Double(r) else {
             throw Failure(message: "set-rate needs --uid --rate")

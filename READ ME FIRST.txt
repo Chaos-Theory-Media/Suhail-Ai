@@ -10,3 +10,8 @@ SAWTI 3.0 — studio agents for IMI podcasts
 
 To practise without the studio: SIMULATE_SAWTI.command
 The full guide is in README.md. Notes for IT are in TECHNICAL.md.
+
+CLEAN UNINSTALL (3.0.2): Open Uninstall Sawti from the Desktop/Applications, or
+UNINSTALL_SAWTI.command in this folder. Stop recording first. Review components
+and paths; recordings and shared tools are kept. Removable files go to Trash.
+Read audit/uninstall/README.md for the remaining Mac validation requirements.

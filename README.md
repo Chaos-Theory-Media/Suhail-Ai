@@ -1,4 +1,6 @@
-# Sawti 3.0.1 (صوتي): studio agents for IMI podcasts
+# Sawti 3.0.2 (صوتي): studio agents for IMI podcasts
+
+**Clean uninstall:** The current installer also creates **Uninstall Sawti.app** on the Desktop and in Applications. It reviews components, preserves recordings, and moves identified Sawti files to Trash. See [clean uninstall and its validation limits](audit/uninstall/README.md).
 
 **QA status:** Linux tests and simulation are validated; Mac Studio hardware and installer qualification are pending. See [the QA report](audit/qa/REPORT.md). The original 3.0 upload is preserved at tag `sawti-3.0-upload`, and 2.2 at `sawti-2.2-baseline`.
 
@@ -83,3 +85,9 @@ so practice runs don't affect what Sawti learns about real shows.
 * Sawti is an in-house tool and is not notarised by Apple, so step 2 of the setup is needed.
 
 Technical details for IT: **TECHNICAL.md**. What changed since 2.2: **CHANGES.md**.
+
+## Clean uninstall
+
+Open **Uninstall Sawti** from the Desktop or Applications, or double-click **UNINSTALL_SAWTI.command** from the current source folder. Stop recording first, select the components, review the plan, then confirm. No Terminal commands need to be typed.
+
+Recordings are preserved. Shared BlackHole/FFmpeg/Homebrew/Apple tools are retained. Removing unused Sawti virtual devices is optional and needs a separate approval. Review the final report, then empty Trash to reclaim space. Actual Mac Studio uninstall qualification is pending; see the linked guide before using it on a studio installation.

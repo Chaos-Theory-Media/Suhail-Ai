@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import store
+from . import store, paths
 
 THRESHOLD = 0.79   # provisional; calibrate on your presenters
 MARGIN = 0.06
@@ -41,8 +41,11 @@ def as_wav(audio):
 @functools.lru_cache(maxsize=1)
 def _whisper():
     from faster_whisper import WhisperModel
+    private = paths.install_dir() / 'models/whisper'
+    # Keep legacy local caches working without claiming ownership of them.
+    download_root = str(private) if private.is_dir() else None
     return WhisperModel(os.environ.get("SAWTI_WHISPER", "small"), device="cpu", compute_type="int8",
-                        local_files_only=True)
+                        local_files_only=True, download_root=download_root)
 
 
 @functools.lru_cache(maxsize=1)
