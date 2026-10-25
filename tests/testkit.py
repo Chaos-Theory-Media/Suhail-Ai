@@ -34,3 +34,18 @@ def client(studio):
 
 BASE = "http://127.0.0.1:8765"
 H = {"X-Sawti": "1"}
+
+
+def approved_action(studio, name):
+    """A test operator explicitly reviews an individual audio-impact action."""
+    review = studio.approvals.review(name)
+    return studio.apply(name, approval=review['token'], operator_confirmed=True,
+                        studio_idle=review['requires_idle'])
+
+
+def prepare_sim_audio(studio):
+    assert studio.audio.simulated, 'This fixture must never configure real studio devices.'
+    approved_action(studio, 'set_scarlett_48k')
+    if studio.mode == 'zoom':
+        approved_action(studio, 'create_show_input')
+        approved_action(studio, 'create_zoom_speaker')

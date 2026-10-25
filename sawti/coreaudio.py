@@ -31,11 +31,11 @@ def find_scarlett(devs):
 def find_blackhole(devs, channels=2):
     cands = [d for d in devs if "blackhole" in d["name"].lower()]
     exact = [d for d in cands if f"{channels}ch" in d["name"].lower()]
-    return (exact or cands or [None])[0]
+    return next((d for d in exact if d['inputs'] == channels and d['outputs'] == channels), None)
 
 
 def find_uid(devs, uid, name=None):
-    return next((d for d in devs if d.get("uid") == uid or (name and d["name"] == name)), None)
+    return next((d for d in devs if d.get("uid") == uid), None)
 
 
 def input_layout(aggregate, devs):
@@ -45,7 +45,7 @@ def input_layout(aggregate, devs):
     for uid in aggregate.get("subdevices", []):
         d = by_uid.get(uid)
         if not d:
-            continue
+            raise AudioError('Aggregate contains an unavailable sub-device; channel order is unknown.')
         key = "scarlett" if is_scarlett(d) else "blackhole" if "blackhole" in d["name"].lower() else uid
         offsets.setdefault(key, pos)
         pos += d["inputs"]
@@ -104,13 +104,15 @@ class RealAudio:
                 idx = next((i for i, p in enumerate(pa) if i not in used and p["name"] == d["name"]), None)
                 if idx is not None:
                     used.add(idx)
-                out.append(dict(d, index=idx, rate=int(d.get("rate") or 0)))
+                if sum(p['name'] == d['name'] for p in pa) != 1:
+                    idx = None  # duplicate names cannot establish a safe PortAudio index
+                out.append(dict(d, index=idx, rate=int(d.get("rate") or 0), rate_verified=True))
         else:  # no helper: PortAudio only, no UIDs (fixes that create devices are unavailable)
             for i, p in enumerate(pa):
                 out.append(dict(index=i, uid=None, name=p["name"], inputs=p["max_input_channels"],
                                 outputs=p["max_output_channels"], rate=int(p["default_samplerate"]),
                                 rates=[], transport="aggregate" if "aggregate" in p["name"].lower() else "other",
-                                subdevices=[]))
+                                subdevices=[], rate_verified=False))
         return out
 
     def create_aggregate(self, name, uid, main_uid, sub_uids, stacked=False):
@@ -125,7 +127,10 @@ class RealAudio:
         return self._helper("destroy", "--uid", uid)
 
     def set_rate(self, uid, rate):
-        return self._helper("set-rate", "--uid", uid, "--rate", str(int(rate)))
+        result = self._helper("set-rate", "--uid", uid, "--rate", str(int(rate)))
+        if result.get('rate') != int(rate):
+            raise AudioError('Requested sample rate was not verified. Check device state before retrying.')
+        return result
 
     def set_default(self, role, uid):
         return self._helper("set-default", "--role", role, "--uid", uid)

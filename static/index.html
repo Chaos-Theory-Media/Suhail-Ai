@@ -27,6 +27,7 @@
 <div id="toasts" class="toasts" aria-live="polite"></div>
 <div id="simBanner" class="sim" hidden>Simulation mode: no real studio hardware is touched. Use it for training and demos.</div>
 <div id="offNote" class="offnote">Sawti is OFF. Nothing is listening and nothing is changed. Switch it ON to start preparing the show.</div>
+<div id="recordingState" class="offnote">Audition recording state: unknown. LIVE is an operator marker.</div>
 
 <main class="layout">
   <section class="work">
@@ -45,7 +46,7 @@
         <h2>Studio check</h2>
         <div class="row gap">
           <button class="btn" id="recheck">Check again</button>
-          <button class="btn primary" id="fixAll">Fix everything I can</button>
+          <button class="btn primary" id="fixAll">Run non-audio fixes</button>
         </div>
       </div>
       <p class="hint">Red = must fix · Amber = should fix · Blue = confirm by hand (once per day) · Green = fine.</p>
@@ -122,7 +123,7 @@
     <div class="panel tabpanel" id="tab-after" hidden>
       <h2>Mix &amp; master</h2>
       <p class="hint">Sawti levels each speaker, closes mics that only carry someone else's voice, mixes, then masters
-        to the house standard. Originals are never changed; new files end in _mix.wav and _master.wav.</p>
+        to the house standard. Originals are preserved; each job writes _mix.wav and _master.wav files in a new Sawti-Export folder.</p>
       <div class="formrow">
         <label for="postFolder">Session folder</label>
         <input id="postFolder" autocomplete="off">
@@ -170,9 +171,7 @@
       <h3 class="mt">Microphone names (shown on meters and in coaching)</h3>
       <div id="nameFields" class="grid2"></div>
       <h3 class="mt">Inline leveler (advanced, off by default)</h3>
-      <p class="hint">When ON, Sawti sits between the Scarlett and Audition: it rides each mic's level live and sends
-        the levelled mics to the device below (use BlackHole 16ch), and the Audition template must record from that
-        device. Test it outside live shows first. When OFF, Sawti only coaches and masters afterwards.</p>
+      <p class="hint">Available in simulation only until qualified on the Mac. Real inline output would make recording depend on Sawti remaining ON, so it is blocked. Capture-only monitoring and offline mastering remain available.</p>
       <div class="grid2">
         <label class="check"><input type="checkbox" id="setLeveler"> Use the inline leveler</label>
         <label>Leveler output device<input id="setLevOut" autocomplete="off"></label>

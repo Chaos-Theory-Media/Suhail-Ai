@@ -30,16 +30,19 @@ def as_wav(audio):
         src, dst = Path(d) / "in.audio", Path(d) / "out.wav"
         src.write_bytes(audio)
         r = subprocess.run(["ffmpeg", "-nostdin", "-loglevel", "error", "-y", "-i", str(src), "-ac", "1", "-ar",
-                            "16000", "-c:a", "pcm_s16le", str(dst)], capture_output=True, timeout=40)
+                            "16000", "-t", "61", "-c:a", "pcm_s16le", str(dst)], capture_output=True, timeout=40)
         if r.returncode != 0 or not dst.exists():
             raise ValueError("Could not read the recording from the browser. Try again.")
+        if dst.stat().st_size > 60 * 16000 * 2 + 4096:
+            raise ValueError('Voice samples must be at most 60 seconds.')
         return dst.read_bytes()
 
 
 @functools.lru_cache(maxsize=1)
 def _whisper():
     from faster_whisper import WhisperModel
-    return WhisperModel(os.environ.get("SAWTI_WHISPER", "small"), device="cpu", compute_type="int8")
+    return WhisperModel(os.environ.get("SAWTI_WHISPER", "small"), device="cpu", compute_type="int8",
+                        local_files_only=True)
 
 
 @functools.lru_cache(maxsize=1)

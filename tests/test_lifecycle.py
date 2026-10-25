@@ -64,8 +64,8 @@ class LifecycleTests(unittest.TestCase):
         for sig in (signal.SIGINT, signal.SIGHUP, signal.SIGTERM):
             if os.path.exists(self.pidfile):
                 os.remove(self.pidfile)
-            env = dict(self.env, SAWTI_PORT="8799", SAWTI_DATA=tempfile.mkdtemp())
-            p = subprocess.Popen([sys.executable, os.path.join(helpers.ROOT, "app.py"), "--simulate"], env=env,
+            env = dict(self.env, SAWTI_PORT="8799", SAWTI_DATA=tempfile.mkdtemp(), SAWTI_SIMULATE='0')
+            p = subprocess.Popen([sys.executable, os.path.join(helpers.ROOT, "app.py")], env=env,
                                  cwd=helpers.ROOT, start_new_session=True, stdout=subprocess.DEVNULL,
                                  stderr=subprocess.DEVNULL)
             try:

@@ -1,0 +1,73 @@
+{
+  "venv-refresh": {
+    "command": [
+      "python3",
+      "-m",
+      "venv",
+      ".venv"
+    ],
+    "exit_code": 0
+  },
+  "repeat-install": {
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "pip",
+      "install",
+      "--no-cache-dir",
+      "-r",
+      "requirements-cloud.lock"
+    ],
+    "exit_code": 0
+  },
+  "dependencies": {
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "pip",
+      "check"
+    ],
+    "exit_code": 0
+  },
+  "python": {
+    "command": [
+      ".venv/bin/python",
+      "-m",
+      "unittest",
+      "discover",
+      "-s",
+      "tests",
+      "-v"
+    ],
+    "exit_code": 0
+  },
+  "browser": {
+    "command": [
+      "node",
+      "--test",
+      "tests/browser_safety.cjs"
+    ],
+    "exit_code": 0
+  },
+  "http": {
+    "command": [
+      ".venv/bin/python",
+      "tests/http_smoke.py",
+      "--output",
+      "audit/qa/results/http-smoke.json"
+    ],
+    "exit_code": 0
+  },
+  "installer-syntax": {
+    "command": [
+      "zsh",
+      "-n",
+      "INSTALL_SAWTI.command",
+      "launch.sh",
+      "START_SAWTI.command",
+      "SIMULATE_SAWTI.command",
+      "UNINSTALL_SAWTI.command"
+    ],
+    "exit_code": 0
+  }
+}

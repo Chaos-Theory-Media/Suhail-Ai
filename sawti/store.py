@@ -22,7 +22,7 @@ DEFAULTS = {
     "speech_target": -20.0,          # LUFS short-term while speaking, raw recording tracks
     "leveler_enabled": False,        # inline live leveler (Sawti in the signal path)
     "leveler_output": "BlackHole 16ch",
-    "auto_prepare": True,            # prepare predicted shows in advance (safe actions only)
+    "auto_prepare": False,           # operator opts in; audio mutations never run automatically
     "autofix": {},                   # action -> True once learned/approved
     "llm_model": "qwen3:4b",
     "source_names": {},              # mode -> {source_id: display name}
@@ -43,6 +43,7 @@ def connect():
     if key not in _initialised:
         with _init_lock:
             if key not in _initialised:
+                _migrate_events(conn, path)
                 conn.execute("PRAGMA journal_mode=WAL")
                 conn.executescript(
                     """
@@ -59,6 +60,31 @@ def connect():
                 conn.commit()
                 _initialised.add(key)
     return conn
+
+
+def _migrate_events(conn, path):
+    """Preserve the 2.2 database before upgrading its incompatible event schema.
+
+    Never translate old free-text prompt logs into the new learning events.
+    The backup is private local data; no database is committed to Git.
+    """
+    columns = {row[1] for row in conn.execute('PRAGMA table_info(events)')}
+    if not columns or {'ts', 'kind', 'data'} <= columns:
+        return
+    if columns != {'id', 'date', 'category', 'message'}:
+        conn.close()
+        raise RuntimeError('Unrecognised Sawti database schema; no migration was applied.')
+    backup = path.with_name('sawti-before-v3.sqlite3')
+    if backup.exists():
+        conn.close()
+        raise RuntimeError('A pre-upgrade backup already exists. Preserve and review it before retrying migration.')
+    with closing(sqlite3.connect(backup)) as saved:
+        conn.backup(saved)
+    backup.chmod(0o600)
+    # Keep a legacy archive table as well as the protected pre-upgrade backup.
+    with conn:
+        conn.execute('ALTER TABLE events RENAME TO events_v2_2')
+        conn.execute('CREATE TABLE events(id INTEGER PRIMARY KEY, ts REAL, kind TEXT, data TEXT)')
 
 
 # ---------- settings ----------
@@ -88,7 +114,7 @@ def all_settings():
 def log(kind, **data):
     with closing(connect()) as db, db:
         db.execute("INSERT INTO events(ts,kind,data) VALUES (?,?,?)",
-                   (time.time(), kind, json.dumps(data, ensure_ascii=False)[:4000]))
+                   (time.time(), kind, json.dumps(data, ensure_ascii=False)))
 
 
 def events(kind=None, since=None, limit=2000):

@@ -9,12 +9,19 @@
 Everything streams in chunks so hour-long shows never load fully into memory.
 """
 import math
+from pathlib import Path
 
 import numpy as np
 from scipy import signal
 from scipy.ndimage import minimum_filter1d, uniform_filter1d
 
 NEG_INF = -120.0
+
+
+def _distinct_output(src, dst):
+    source, target = Path(src), Path(dst)
+    if source.resolve() == target.resolve() or (target.exists() and source.samefile(target)):
+        raise ValueError('Output must not replace a source recording.')
 
 
 def db(x):
@@ -168,6 +175,7 @@ def limiter_gain(x, fs, ceiling_db, lookahead_ms=5.0, release_ms=60.0):
 def _process_file(src, dst, fn, out_channels=None, block_seconds=20, margin_seconds=0.25):
     """Run fn(block, fs) over a file in overlapping chunks and write PCM-24 WAV."""
     sf = _sf()
+    _distinct_output(src, dst)
     info = sf.info(str(src))
     fs = info.samplerate
     bs, m = int(block_seconds * fs), int(margin_seconds * fs)
@@ -242,6 +250,10 @@ def automix(tracks, dst, speech_target=-23.0, max_boost=20.0, max_cut=15.0, floo
     tracks: list of file paths (one per microphone / remote guest feed).
     """
     sf = _sf()
+    if not tracks:
+        raise ValueError('Select at least one track.')
+    for source in tracks:
+        _distinct_output(source, dst)
     curves, infos = [], []
     for p in tracks:
         c, info = _short_term_curve(p)
@@ -251,6 +263,8 @@ def automix(tracks, dst, speech_target=-23.0, max_boost=20.0, max_cut=15.0, floo
     if any(i.samplerate != fs for i in infos):
         raise ValueError("All tracks must have the same sample rate.")
     n_hops = max(len(c) for c in curves)
+    if n_hops == 0:
+        raise ValueError('Tracks are too short for loudness analysis (minimum 100 ms).')
     P = np.zeros((len(tracks), n_hops))
     for i, c in enumerate(curves):
         P[i, : len(c)] = c

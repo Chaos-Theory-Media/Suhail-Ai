@@ -1,0 +1,77 @@
+test_every_suggested_prompt_routes_correctly (test_chat.ChatRoutingTests.test_every_suggested_prompt_routes_correctly) ... ok
+test_wake_word_removed (test_chat.ChatRoutingTests.test_wake_word_removed) ... ok
+test_leveler_raises_quiet_speech_and_never_overshoots (test_dsp.LevelerTests.test_leveler_raises_quiet_speech_and_never_overshoots) ... ok
+test_leveler_tames_hot_speech (test_dsp.LevelerTests.test_leveler_tames_hot_speech) ... ok
+test_chunked_equals_whole (test_dsp.LoudnessTests.test_chunked_equals_whole) ... ok
+test_ebu_reference_sine (test_dsp.LoudnessTests.test_ebu_reference_sine) ... ok
+test_silence_is_gated (test_dsp.LoudnessTests.test_silence_is_gated) ... ok
+test_automix_balances_unequal_mics_with_bleed (test_dsp.MasteringTests.test_automix_balances_unequal_mics_with_bleed) ... ok
+test_master_hits_podcast_standard (test_dsp.MasteringTests.test_master_hits_podcast_standard) ... ok
+test_master_quiet_file_is_limited_not_clipped (test_dsp.MasteringTests.test_master_quiet_file_is_limited_not_clipped) ... ok
+test_silent_file_rejected (test_dsp.MasteringTests.test_silent_file_rejected) ... ok
+test_stale_child_cleaned_on_next_start (test_lifecycle.LifecycleTests.test_stale_child_cleaned_on_next_start) ... ok
+test_terminal_close_and_ctrl_c_stop_ai (test_lifecycle.LifecycleTests.test_terminal_close_and_ctrl_c_stop_ai)
+QA defect: closing Terminal (SIGHUP) or Ctrl+C (SIGINT) left the private Ollama running. ... ok
+test_session_mix_and_master_job (test_post.PostTests.test_session_mix_and_master_job) ... ok
+test_devices_merge_and_layout (test_realaudio.RealAudioTests.test_devices_merge_and_layout) ... ok
+test_helper_commands (test_realaudio.RealAudioTests.test_helper_commands) ... ok
+test_real_meter_stream_zoom (test_realaudio.RealAudioTests.test_real_meter_stream_zoom) ... ok
+test_loudness_and_true_peak_agree_with_ffmpeg_on_synthetic_programme (test_reference.IndependentMeasurementTests.test_loudness_and_true_peak_agree_with_ffmpeg_on_synthetic_programme) ... ok
+test_direct_dsp_refuses_source_aliases (test_safety.ExportSafetyTests.test_direct_dsp_refuses_source_aliases) ... ok
+test_master_does_not_overwrite_existing_output (test_safety.ExportSafetyTests.test_master_does_not_overwrite_existing_output) ... ok
+test_output_name_cannot_escape_export_directory (test_safety.ExportSafetyTests.test_output_name_cannot_escape_export_directory) ... ok
+test_api_action_requires_approval (test_safety.SafetyTests.test_api_action_requires_approval) ... ok
+test_approval_cannot_authorise_another_action (test_safety.SafetyTests.test_approval_cannot_authorise_another_action) ... ok
+test_approval_expires_and_state_changes_invalidate_it (test_safety.SafetyTests.test_approval_expires_and_state_changes_invalidate_it) ... ok
+test_arabic_rule_reply_and_talkback_uncertainty (test_safety.SafetyTests.test_arabic_rule_reply_and_talkback_uncertainty) ... ok
+test_audio_change_invalidates_prior_manual_confirmations (test_safety.SafetyTests.test_audio_change_invalidates_prior_manual_confirmations) ... ok
+test_bulk_and_legacy_autofixes_cannot_change_audio (test_safety.SafetyTests.test_bulk_and_legacy_autofixes_cannot_change_audio) ... ok
+test_device_change_requires_fresh_scoped_approval (test_safety.SafetyTests.test_device_change_requires_fresh_scoped_approval) ... ok
+test_empty_or_malformed_requests_do_not_create_jobs (test_safety.SafetyTests.test_empty_or_malformed_requests_do_not_create_jobs) ... ok
+test_failed_meter_does_not_start_pretest (test_safety.SafetyTests.test_failed_meter_does_not_start_pretest) ... ok
+test_failed_stream_start_closes_allocated_stream (test_safety.SafetyTests.test_failed_stream_start_closes_allocated_stream) ... ok
+test_go_live_does_not_claim_monitoring_when_capture_failed (test_safety.SafetyTests.test_go_live_does_not_claim_monitoring_when_capture_failed) ... ok
+test_idle_attestation_is_required_for_audio_changes (test_safety.SafetyTests.test_idle_attestation_is_required_for_audio_changes) ... ok
+test_large_learning_event_is_not_truncated_into_invalid_json (test_safety.SafetyTests.test_large_learning_event_is_not_truncated_into_invalid_json) ... ok
+test_live_setting_changes_and_unqualified_inline_output_are_blocked (test_safety.SafetyTests.test_live_setting_changes_and_unqualified_inline_output_are_blocked) ... ok
+test_marker_only_stale_pidfile_cannot_kill_current_process (test_safety.SafetyTests.test_marker_only_stale_pidfile_cannot_kill_current_process) ... ok
+test_missing_aggregate_subdevice_fails_closed (test_safety.SafetyTests.test_missing_aggregate_subdevice_fails_closed) ... ok
+test_off_cancels_pending_approvals_and_direct_meter_start (test_safety.SafetyTests.test_off_cancels_pending_approvals_and_direct_meter_start) ... ok
+test_off_serialises_with_inflight_capture_start (test_safety.SafetyTests.test_off_serialises_with_inflight_capture_start) ... ok
+test_power_on_and_simulation_do_not_spawn_services_or_change_audio (test_safety.SafetyTests.test_power_on_and_simulation_do_not_spawn_services_or_change_audio) ... ok
+test_presenter_embedding_requires_consent_and_is_removed_on_delete (test_safety.SafetyTests.test_presenter_embedding_requires_consent_and_is_removed_on_delete) ... ok
+test_real_capture_refuses_an_unverified_default_rate (test_safety.SafetyTests.test_real_capture_refuses_an_unverified_default_rate) ... ok
+test_record_without_target_session_sends_no_keystroke (test_safety.SafetyTests.test_record_without_target_session_sends_no_keystroke) ... ok
+test_recording_state_never_inferred_from_live_flag (test_safety.SafetyTests.test_recording_state_never_inferred_from_live_flag) ... ok
+test_settings_types_and_atomic_validation (test_safety.SafetyTests.test_settings_types_and_atomic_validation) ... ok
+test_silence_diagnosis_does_not_claim_permission_certainty (test_safety.SafetyTests.test_silence_diagnosis_does_not_claim_permission_certainty) ... ok
+test_simulation_refuses_real_voice_processing (test_safety.SafetyTests.test_simulation_refuses_real_voice_processing) ... ok
+test_skipped_pretest_cannot_claim_readiness (test_safety.SafetyTests.test_skipped_pretest_cannot_claim_readiness) ... ok
+test_transport_requires_specific_approval (test_safety.SafetyTests.test_transport_requires_specific_approval) ... ok
+test_unowned_ollama_port_is_not_contacted (test_safety.SafetyTests.test_unowned_ollama_port_is_not_contacted) ... ok
+test_v22_database_upgrade_preserves_people_and_backup (test_safety.SafetyTests.test_v22_database_upgrade_preserves_people_and_backup) ... ok
+test_wrong_blackhole_or_named_device_is_not_selected (test_safety.SafetyTests.test_wrong_blackhole_or_named_device_is_not_selected) ... ok
+test_foreign_host_rejected (test_server.SecurityTests.test_foreign_host_rejected) ... ok
+test_foreign_origin_rejected (test_server.SecurityTests.test_foreign_origin_rejected) ... ok
+test_meter_failure_reports_reason (test_server.SecurityTests.test_meter_failure_reports_reason) ... ok
+test_off_gate (test_server.SecurityTests.test_off_gate) ... ok
+test_presenter_delete_by_id_handles_any_name (test_server.SecurityTests.test_presenter_delete_by_id_handles_any_name) ... ok
+test_security_headers (test_server.SecurityTests.test_security_headers) ... ok
+test_settings_validation (test_server.SecurityTests.test_settings_validation) ... ok
+test_write_without_header_rejected (test_server.SecurityTests.test_write_without_header_rejected) ... ok
+test_auto_prepare_predicted_show (test_studio.StudioSimulationTests.test_auto_prepare_predicted_show) ... ok
+test_autofix_suggested_after_repeats (test_studio.StudioSimulationTests.test_autofix_suggested_after_repeats) ... ok
+test_fix_all_leaves_rate_for_individual_approval (test_studio.StudioSimulationTests.test_fix_all_leaves_rate_for_individual_approval) ... ok
+test_folder_scan_refuses_home (test_studio.StudioSimulationTests.test_folder_scan_refuses_home) ... ok
+test_learned_naming_pattern (test_studio.StudioSimulationTests.test_learned_naming_pattern) ... ok
+test_live_guard_blocks_device_changes (test_studio.StudioSimulationTests.test_live_guard_blocks_device_changes) ... ok
+test_meters_and_coaching (test_studio.StudioSimulationTests.test_meters_and_coaching) ... ok
+test_permission_block_detected (test_studio.StudioSimulationTests.test_permission_block_detected) ... ok
+test_pretest_full_run (test_studio.StudioSimulationTests.test_pretest_full_run) ... ok
+test_template_and_session (test_studio.StudioSimulationTests.test_template_and_session) ... ok
+test_zoom_devices_created_and_guest_channels_mapped (test_studio.StudioSimulationTests.test_zoom_devices_created_and_guest_channels_mapped) ... ok
+
+----------------------------------------------------------------------
+Ran 71 tests in 51.101s
+
+OK

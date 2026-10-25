@@ -50,6 +50,8 @@ def find_app():
 # ------------------------------------------------------------------ session files
 def parse_sesx(path):
     """Best-effort read of an Audition session: sample rate, tracks (name, mono/stereo, armed, input)."""
+    if Path(path).stat().st_size > 8 * 1024 * 1024:
+        raise ValueError('The session template exceeds the 8 MiB inspection limit.')
     root = ET.parse(str(path)).getroot()
     session = root.find(".//session")
     rate = session.get("sampleRate") if session is not None else None
@@ -180,12 +182,14 @@ def _wavs(folder):
 
 def record(studio):
     s = today_session(studio, studio.mode)
+    if not s:
+        raise RuntimeError('Prepare and verify the target session in Audition before recording. No keystroke was sent.')
     before = _wavs(s["folder"]) if s else {}
     if studio.audio.simulated:
         studio.go_live(source="sawti")
         return "(simulation) Recording started."
-    _keystroke(studio, "keystroke space using shift down")  # Audition: Shift+Space = Record
     studio.go_live(source="sawti")
+    _keystroke(studio, "keystroke space using shift down")  # qualified shortcut must be checked on the target Mac
 
     def verify():
         time.sleep(6)
@@ -251,7 +255,10 @@ def check(studio, mode, apps):
 ACTIONS = [
     Action("prepare_session", "Prepare today's session", lambda st: prepare_session(st), safe=True, live_safe=True,
            agent=AGENT),
-    Action("open_session", "Open session in Audition", open_session, safe=True, live_safe=False, agent=AGENT),
-    Action("record", "Record in Audition", record, live_safe=True, agent=AGENT),
-    Action("stop", "Stop recording", stop, live_safe=True, agent=AGENT),
+    Action("open_session", "Open session in Audition", open_session, live_safe=False, agent=AGENT,
+           impact="Activates Audition and opens a different session. Existing work may be interrupted."),
+    Action("record", "Record in Audition", record, live_safe=True, agent=AGENT,
+           impact="Sends a Record keystroke to Audition. Check focus, shortcuts and active session first."),
+    Action("stop", "Stop recording", stop, live_safe=True, agent=AGENT,
+           impact="Sends Space to Audition; this can STOP a recording or toggle playback. Check Audition first."),
 ]

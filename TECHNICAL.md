@@ -1,3 +1,18 @@
+# QA addendum for Sawti 3.0.1
+
+The notes below describe the original 3.0 design and are superseded where they conflict with [the QA report](audit/qa/REPORT.md). Real hardware, Swift helper compilation, Gatekeeper behaviour and audio continuity have not been tested here. Read-only inspection and simulation work on Linux.
+
+- `sawti/safety.py` provides single-use, expiring action approvals tied to current device/mode/session state. A fresh idle attestation is required for audio changes; Stop requires explicit interruption approval. LIVE never proves external recording state.
+- Audio-impact actions are excluded from bulk fixes, learned automation and power-on. Simulation starts no real Ollama/caffeinate processes. Real inline output is blocked pending qualification.
+- Browser capture checks OFF before/after permissions, releases tracks on OFF/page exit, and discards cancelled samples. Other tabs synchronise power on their next status poll; this is not a hardware mute.
+- Own processes use process-group shutdown and stale-PID identity checks. An occupied AI port is refused; only owned, ready local Qwen3 is contacted.
+- New exports get unique directories; original recordings and previous exports are preserved. Post jobs may finish in the background after OFF; Quit terminates the application. In-flight speech/model results are discarded after power changes. OFF is a lifecycle control, not a guarantee that every Python computation is instantly preempted.
+- Migration backs up the incompatible 2.2 event database and preserves presenter rows. Backups and legacy event tables may contain old private prompts; retain/review them locally, never commit them.
+- `requirements-cloud.lock` pins the tested Linux/CI dependencies. macOS dependency locking and installer acceptance remain outstanding.
+- Installer retains quarantine metadata, verifies uv checksums, checks Ollama signature/Gatekeeper, and preloads optional voice models. These macOS operations were statically reviewed, not executed here.
+
+Original design notes (historical claims require the qualifications above):
+
 # Sawti 3.0: technical notes (IT / DevOps)
 
 ## Layout

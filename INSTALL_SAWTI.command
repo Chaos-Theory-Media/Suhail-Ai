@@ -24,11 +24,13 @@ cleanup() {
   [[ -n "$SERVER_PID" ]] && { kill "$SERVER_PID" 2>/dev/null; wait "$SERVER_PID" 2>/dev/null; SERVER_PID=""; }
   [[ -n "$TMP" && -d "$TMP" ]] && rm -rf "$TMP"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 step() { print "\n\033[1m▶ $1\033[0m"; }
 ok()   { print "  ✓ $1"; }
 warn() { print "  ! $1"; }
-fail() { print "\n✖ $1\n  Nothing else was changed. Full log: $LOG"; read "?Press Return to close."; exit 1; }
+fail() { print "\n✖ $1\n  Setup stopped; earlier completed steps may remain. Full log: $LOG"; read "?Press Return to close."; exit 1; }
 yes_no() { local a; read "a?$1 [y/n]: "; [[ "$a" == [yY]* ]]; }
 
 print "────────────────────────────────────────────"
@@ -39,8 +41,14 @@ print "────────────────────────�
 MACOS_MAJOR=$(sw_vers -productVersion | cut -d. -f1)
 (( MACOS_MAJOR >= 14 )) || fail "macOS 14 Sonoma or newer is required (this Mac has $(sw_vers -productVersion))."
 
-# Files from a downloaded ZIP are quarantined; clear it for this folder so the other scripts open normally.
-xattr -dr com.apple.quarantine "$HERE" 2>/dev/null && ok "Sawti folder approved for this Mac"
+# Keep Gatekeeper/quarantine verification intact. The operator uses the macOS
+# approval UI; the installer must not remove trust metadata recursively.
+yes_no "Have you checked that all production recording is stopped and the studio is idle?" || exit 0
+for active_port in 8765 8766; do
+  if lsof -nP -iTCP:$active_port -sTCP:LISTEN >/dev/null 2>&1; then
+    fail "Quit Sawti before updating its runtime. Port $active_port is occupied; no process was stopped."
+  fi
+done
 
 print "\nThis will download about 3–4 GB (Python, libraries, local AI) the first time."
 WANT_AI=1; WANT_VOICE=0
@@ -54,11 +62,14 @@ export UV_PYTHON_INSTALL_DIR="$RUNTIME/python" UV_CACHE_DIR="$SUPPORT/cache/uv"
 if [[ ! -x "$UV" ]]; then
   TMP=$(mktemp -d)
   if curl --fail --location --retry 2 --silent --show-error \
-      "https://github.com/astral-sh/uv/releases/latest/download/uv-aarch64-apple-darwin.tar.gz" -o "$TMP/uv.tgz" \
-     && tar -xzf "$TMP/uv.tgz" -C "$TMP"; then
+      "https://github.com/astral-sh/uv/releases/latest/download/uv-aarch64-apple-darwin.tar.gz" -o "$TMP/uv-aarch64-apple-darwin.tar.gz" \
+     && curl --fail --location --retry 2 --silent --show-error \
+      "https://github.com/astral-sh/uv/releases/latest/download/uv-aarch64-apple-darwin.tar.gz.sha256" -o "$TMP/uv.sha256" \
+     && (cd "$TMP" && shasum -a 256 -c uv.sha256) \
+     && tar -xzf "$TMP/uv-aarch64-apple-darwin.tar.gz" -C "$TMP"; then
     mkdir -p "$RUNTIME/uv" && mv "$TMP"/uv-aarch64-apple-darwin/uv* "$RUNTIME/uv/" && ok "Python manager installed"
   else
-    warn "Could not download the Python manager; trying the Mac's own Python."
+    warn "Could not download and verify the Python manager; the downloaded artifact will not be used. Trying system Python."
   fi
   rm -rf "$TMP"; TMP=""
 fi
@@ -122,6 +133,7 @@ if (( WANT_AI )); then
     unzip -q "$TMP/Ollama.zip" -d "$TMP" || fail "The Ollama download is damaged."
     [[ -x "$TMP/Ollama.app/Contents/Resources/ollama" ]] || fail "Unexpected Ollama package layout."
     codesign --verify --deep --strict "$TMP/Ollama.app" 2>/dev/null || fail "Ollama's code signature did not verify."
+    spctl --assess --type execute "$TMP/Ollama.app" 2>/dev/null || fail "macOS did not approve Ollama's publisher/notarisation."
     rm -rf "$OLLAMA_APP"
     mv "$TMP/Ollama.app" "$OLLAMA_APP"
     rm -rf "$TMP"; TMP=""
@@ -129,10 +141,12 @@ if (( WANT_AI )); then
   else
     ok "Ollama already installed for Sawti"
   fi
+  codesign --verify --deep --strict "$OLLAMA_APP" 2>/dev/null || fail "Installed Ollama signature is invalid."
+  spctl --assess --type execute "$OLLAMA_APP" 2>/dev/null || fail "Installed Ollama did not pass Gatekeeper assessment."
   if lsof -nP -iTCP:11439 -sTCP:LISTEN >/dev/null 2>&1; then
     warn "Sawti's AI port is busy (Sawti may be running). Quit Sawti and run the installer again to download the model."
   else
-    OLLAMA_HOST="127.0.0.1:11439" OLLAMA_MODELS="$MODELS" "$OLLAMA_BIN" serve >"$SUPPORT/run/installer-ollama.log" 2>&1 &
+    OLLAMA_NO_CLOUD=1 OLLAMA_HOST="127.0.0.1:11439" OLLAMA_MODELS="$MODELS" "$OLLAMA_BIN" serve >"$SUPPORT/run/installer-ollama.log" 2>&1 &
     SERVER_PID=$!
     READY=0
     for i in {1..40}; do curl -fs --max-time 2 http://127.0.0.1:11439/api/tags >/dev/null 2>&1 && { READY=1; break; }; sleep 0.5; done
@@ -157,7 +171,11 @@ if (( WANT_VOICE )); then
   if command -v ffmpeg >/dev/null 2>&1; then
     if [[ -x "$UV" ]]; then "$UV" pip install --python "$VENV/bin/python" -r "$HERE/requirements-voice.txt"
     else "$VENV/bin/python" -m pip install -r "$HERE/requirements-voice.txt"; fi \
-      && ok "Voice features installed (the speech model downloads on first use)" || warn "Voice features failed to install; Sawti works without them."
+      && {
+        "$VENV/bin/python" -c 'from faster_whisper import WhisperModel; WhisperModel("small", device="cpu", compute_type="int8"); from resemblyzer import VoiceEncoder; VoiceEncoder()' \
+          && ok "Voice packages and models cached; offline operation still needs a studio test." \
+          || warn "Voice model preloading failed. Voice is not ready for offline use."
+      } || warn "Voice features failed to install; Sawti works without them."
   else
     warn "Voice needs ffmpeg (install Homebrew, then run this installer again). Skipped."
   fi
@@ -167,14 +185,23 @@ fi
 step "Sawti app"
 APPDIR="$HOME/Applications"; mkdir -p "$APPDIR"
 APP="$APPDIR/Sawti.app"
-rm -rf "$APP"
-osacompile -o "$APP" -e "do shell script quoted form of \"$HERE/launch.sh\" & \" > /dev/null 2>&1 &\"" \
+STAGED_APP="$APPDIR/Sawti-install-$RANDOM.app"
+osacompile -o "$STAGED_APP" \
+  -e 'set appPath to POSIX path of (path to me)' \
+  -e 'set launcher to do shell script "/bin/cat " & quoted form of (appPath & "Contents/Resources/launcher-path")' \
+  -e 'do shell script quoted form of launcher & " > /dev/null 2>&1 &"' \
   || fail "Could not create the Sawti app."
-plutil -replace NSMicrophoneUsageDescription -string "Sawti measures microphone levels for the studio checks. Audio is never recorded or sent anywhere." "$APP/Contents/Info.plist"
-plutil -replace NSAppleEventsUsageDescription -string "Sawti presses Record and Stop in Adobe Audition when you ask it to." "$APP/Contents/Info.plist"
-plutil -replace CFBundleIdentifier -string "com.imi.sawti" "$APP/Contents/Info.plist"
-plutil -replace CFBundleName -string "Sawti" "$APP/Contents/Info.plist"
-codesign --force --deep --sign - "$APP" >/dev/null 2>&1
+mkdir -p "$STAGED_APP/Contents/Resources"
+print -r -- "$HERE/launch.sh" > "$STAGED_APP/Contents/Resources/launcher-path"
+plutil -replace NSMicrophoneUsageDescription -string "Sawti measures audio locally; optional voice recordings are processed locally." "$STAGED_APP/Contents/Info.plist"
+plutil -replace NSAppleEventsUsageDescription -string "Sawti sends Record and Stop keystrokes only after a specific operator approval." "$STAGED_APP/Contents/Info.plist"
+plutil -replace CFBundleIdentifier -string "com.imi.sawti" "$STAGED_APP/Contents/Info.plist"
+plutil -replace CFBundleName -string "Sawti" "$STAGED_APP/Contents/Info.plist"
+codesign --force --deep --sign - "$STAGED_APP" >/dev/null 2>&1 || fail "Could not sign the local launcher."
+if [[ -e "$APP" ]]; then
+  mv "$APP" "$APPDIR/Sawti-backup-$(date +%Y%m%d-%H%M%S)-$RANDOM.app" || fail "Could not preserve the previous Sawti app."
+fi
+mv "$STAGED_APP" "$APP" || fail "Could not activate the new launcher."
 osascript -e "tell application \"Finder\" to make alias file to (POSIX file \"$APP\") at desktop" >/dev/null 2>&1 \
   && ok "Sawti app in ~/Applications, alias on the Desktop" || ok "Sawti app in ~/Applications"
 chmod +x "$HERE"/*.command "$HERE/launch.sh"

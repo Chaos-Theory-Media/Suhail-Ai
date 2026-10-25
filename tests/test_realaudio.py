@@ -55,7 +55,7 @@ class RealAudioTests(unittest.TestCase):
         helper.parent.mkdir(parents=True, exist_ok=True)
         log = os.path.join(os.environ["SAWTI_INSTALL"], "calls.log")
         helper.write_text("#!%s\nimport sys, json\nopen(%r,'a').write(' '.join(sys.argv[1:])+'\\n')\n"
-                          "print(json.dumps({'ok': True, 'devices': %s}) if sys.argv[1]=='list' else json.dumps({'ok': True}))\n"
+                          "print(json.dumps({'ok': True, 'devices': %s}) if sys.argv[1]=='list' else json.dumps({'ok': True, 'rate': 48000}))\n"
                           % (sys.executable, log, json.dumps(DEVICES).replace("true", "True").replace("false", "False")))
         helper.chmod(helper.stat().st_mode | stat.S_IEXEC)
         self.log = log
@@ -84,7 +84,8 @@ class RealAudioTests(unittest.TestCase):
         ra = RealAudio()
         ra.create_aggregate("Sawti Show Input", "com.imi.sawti.show-input", "SCARLETT", ["SCARLETT", "BH2"])
         ra.set_rate("SCARLETT", 48000)
-        calls = open(self.log).read()
+        with open(self.log) as logged:
+            calls = logged.read()
         self.assertIn("create --name Sawti Show Input --uid com.imi.sawti.show-input --main SCARLETT --sub SCARLETT --sub BH2", calls)
         self.assertIn("set-rate --uid SCARLETT --rate 48000", calls)
 
@@ -93,6 +94,7 @@ class RealAudioTests(unittest.TestCase):
         try:
             from sawti.studio import Studio
             st = Studio(audio=RealAudio())
+            st.lifecycle.on = True
             st.mode = "zoom"
             self.assertTrue(st.start_meter(), st.monitor.error)
             time.sleep(0.6)

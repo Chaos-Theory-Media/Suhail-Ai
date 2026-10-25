@@ -21,6 +21,8 @@ function h(tag, attrs = {}, ...kids) {
 async function api(path, opts = {}) {
   const init = { method: opts.method || (opts.body !== undefined || opts.form ? 'POST' : 'GET'), headers: {} };
   if (init.method !== 'GET') init.headers['X-Sawti'] = '1';
+  const open = ['/api/app', '/api/power', '/api/power/on', '/api/power/off', '/api/quit', '/api/settings'];
+  if (!S.on && !open.includes(path)) throw new Error('Sawti is OFF. Switch it ON first.');
   if (opts.form) init.body = opts.form;
   else if (opts.body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.body); }
   let r;
@@ -32,7 +34,7 @@ async function api(path, opts = {}) {
 }
 
 const S = { on: false, mode: 'local', live: false, tab: 'prepare', simulated: false, voice: {}, seenNotices: 0,
-  pretestActive: false, jobs: {}, settings: null, profiles: null };
+  pretestActive: false, jobs: {}, settings: null, profiles: null, generation: 0 };
 
 function toast(message, level = 'info', ms = 6000) {
   const t = h('div', { class: `toast ${level}`, text: message });
@@ -53,17 +55,30 @@ async function guard(fn, okMsg) {
 
 // ------------------------------------------------------------------ actions (shared by checks, chat, pre-test)
 const NEEDS_CONFIRM = { record: 'Press RECORD in Audition now?', stop: 'Press STOP in Audition now?',
-  fix_all: 'Let Sawti fix everything it can (devices, sample rates, session)?' };
+  fix_all: 'Run non-audio fixes? Sample rates, devices and Audition changes need individual approval.' };
 async function runAction(action) {
-  if (NEEDS_CONFIRM[action] && !(await ask(NEEDS_CONFIRM[action]))) return;
+  let approval = {};
+  const impactful = new Set(['record', 'stop', 'open_session', 'open_zoom', 'set_scarlett_48k',
+    'set_blackhole_48k', 'set_show_input_48k', 'create_show_input', 'repair_show_input', 'create_zoom_speaker']);
+  if (impactful.has(action)) {
+    const review = await guard(() => api('/api/action/review', {body: {action}}));
+    if (!review) return;
+    const text = `${review.label}: ${review.impact}\n\n${review.warning}\n\n` +
+      (review.requires_idle ? 'Authorise this action and confirm you checked that ALL recording is idle?' :
+        'Authorise sending Stop even if it interrupts the current recording?');
+    if (!(await ask(text))) return;
+    approval = {approval: review.token, operator_confirmed: true, studio_idle: review.requires_idle};
+  } else if (NEEDS_CONFIRM[action] && !(await ask(NEEDS_CONFIRM[action]))) return;
   if (action === 'pretest') { switchTab('pretest'); return startPretest(); }
   if (action === 'meter_start') { switchTab('live'); return startMeters(); }
-  const r = await guard(() => api('/api/action', { body: { action } }), (x) => x.message);
+  const r = await guard(() => api('/api/action', { body: { action, ...approval } }), (x) => x.message);
   if (r) { if (r.findings) renderFindings(r.findings); refreshAudition(); }
 }
 
 // ------------------------------------------------------------------ power, mode, live
 function renderPower(st) {
+  if (S.on !== st.on) S.generation++;
+  if (!st.on) stopVoice();
   S.on = st.on; S.live = st.live; S.mode = st.mode;
   $('#pill').textContent = st.live ? `LIVE ${Math.floor(st.live_minutes || 0)} min` : st.on ? 'ON' : 'OFF';
   $('#pill').className = 'pill ' + (st.live ? 'live' : st.on ? 'on' : 'off');
@@ -74,12 +89,14 @@ function renderPower(st) {
   $('#offNote').hidden = st.on;
   $$('.mode').forEach((b) => b.classList.toggle('active', b.dataset.mode === st.mode));
   $('#aiState').textContent = st.ollama_detail || '';
+  $('#recordingState').textContent = 'Audition recording state: unknown. LIVE is an operator marker.';
   for (const n of st.notices || []) if (n.id > S.seenNotices) { S.seenNotices = n.id; toast(n.message, n.level, 9000); }
 }
 $('#powerBtn').addEventListener('click', async () => {
   if (S.on) {
     if (S.live && !(await ask('A show is live. Switch Sawti off anyway? (Audition keeps recording.)'))) return;
-    const st = await guard(() => api('/api/power/off', { body: {} }), 'Sawti is off. Nothing is listening.');
+    S.generation++; stopVoice(); S.on = false;
+    const st = await guard(() => api('/api/power/off', { body: {} }), 'Sawti capture and managed services are off.');
     if (st) { renderPower(st); clearLive(); }
   } else {
     const st = await guard(() => api('/api/power/on', { body: { mode: S.mode } }));
@@ -88,6 +105,7 @@ $('#powerBtn').addEventListener('click', async () => {
 });
 $('#quitBtn').addEventListener('click', async () => {
   if (!(await ask('Close Sawti completely? Audition, Zoom and the Scarlett are not affected.'))) return;
+  S.generation++; stopVoice(); S.on = false;
   const r = await guard(() => api('/api/quit', { body: {} }));
   if (r) document.body.replaceChildren(h('div', { class: 'offnote', text: r.message }));
 });
@@ -182,7 +200,7 @@ function renderMeters(meter, coach) {
   const byId = Object.fromEntries((coach || []).map((c) => [c.id, c]));
   $('#meterState').textContent = meter.running ? `${meter.device} · ${meter.rate / 1000} kHz${meter.leveler ? ' · leveler ON' : ''}` : 'Meters stopped';
   $('#meterError').hidden = !meter.error; $('#meterError').textContent = meter.error || '';
-  if (meter.digital_silence) { $('#meterError').hidden = false; $('#meterError').textContent = 'Every input is digital silence: macOS is blocking microphone access. See the Prepare tab for the fix.'; }
+  if (meter.digital_silence) { $('#meterError').hidden = false; $('#meterError').textContent = 'All inputs are digital silence. Check source, routing and microphone permission; the cause is unverified.'; }
   const target = S.settings ? S.settings.speech_target : -20;
   const box = $('#meters');
   box.replaceChildren(...(meter.sources || []).map((s) => {
@@ -214,11 +232,16 @@ $('#stopBtn').addEventListener('click', () => runAction('stop'));
 let statusBusy = false;
 async function pollStatus() {
   if (statusBusy) return; statusBusy = true;
+  const generation = S.generation;
   try {
     const r = await api('/api/status');
+    if (generation !== S.generation) return;
     renderPower(r.studio);
     if (r.meter.running || r.meter.error) renderMeters(r.meter, r.coach); else clearLive();
-  } catch (e) { /* server may be restarting */ } finally { statusBusy = false; }
+  } catch (e) {
+    try { renderPower(await api('/api/power')); }
+    catch { S.generation++; stopVoice(); S.on = false; clearLive(); $('#pill').textContent = 'CONNECTION LOST'; }
+  } finally { statusBusy = false; }
 }
 
 // ------------------------------------------------------------------ pre-test
@@ -404,28 +427,62 @@ async function send(text) {
 }
 $('#chatForm').addEventListener('submit', (e) => { e.preventDefault(); const t = $('#chatInput').value.trim(); if (!t) return; $('#chatInput').value = ''; send(t); });
 
-let recorder = null;
+let recorder = null, voiceStream = null, voiceGeneration = 0, voicePending = false, voiceTimer = null;
+function stopVoice() {
+  voiceGeneration++;
+  voicePending = false;
+  clearTimeout(voiceTimer); voiceTimer = null;
+  if (recorder && recorder.state === 'recording') recorder.stop();
+  if (voiceStream) voiceStream.getTracks().forEach((t) => t.stop());
+  voiceStream = null; recorder = null;
+  $('#voiceState').textContent = ''; $('#voiceBtn').textContent = '🎙 Tap to speak';
+}
+window.addEventListener('pagehide', stopVoice);
 async function recordVoice(url, enrol) {
+  if (S.simulated) return toast('Simulation does not use real microphones.', 'warn');
+  if (!S.on) return toast('Switch Sawti ON before using the microphone.', 'warn');
   if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
+  if (voicePending) return;
+  const generation = ++voiceGeneration;
+  voicePending = true;
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
-  catch (e) { toast('The browser could not use the microphone: ' + e.message, 'fail'); return; }
-  const mime = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4';
+  catch (e) { if (generation === voiceGeneration) voicePending = false; toast('The browser could not use the microphone: ' + e.message, 'fail'); return; }
+  if (!S.on || generation !== voiceGeneration) { stream.getTracks().forEach((t) => t.stop()); return; }
+  voicePending = false; voiceStream = stream;
+  let media;
+  try {
+    const mime = ['audio/webm', 'audio/mp4'].find((m) => MediaRecorder.isTypeSupported(m));
+    media = mime ? new MediaRecorder(stream, {mimeType: mime}) : new MediaRecorder(stream);
+  } catch (e) { stopVoice(); toast(e.message, 'fail'); return; }
+  recorder = media;
+  const mime = media.mimeType || 'audio/webm';
   const chunks = [];
-  recorder = new MediaRecorder(stream, { mimeType: mime });
-  recorder.ondataavailable = (e) => chunks.push(e.data);
-  recorder.onstop = async () => {
+  let bytes = 0, tooLarge = false;
+  media.ondataavailable = (e) => {
+    bytes += e.data.size;
+    if (bytes > 7 * 1024 * 1024) { tooLarge = true; if (media.state === 'recording') media.stop(); }
+    else chunks.push(e.data);
+  };
+  media.onerror = () => { stopVoice(); toast('Microphone recording failed.', 'fail'); };
+  media.onstop = async () => {
     stream.getTracks().forEach((t) => t.stop());
+    if (!S.on || generation !== voiceGeneration) return;
+    clearTimeout(voiceTimer); voiceTimer = null; voiceStream = null; recorder = null;
+    if (tooLarge) { toast('Voice sample exceeded the size limit.', 'fail'); return; }
     $('#voiceState').textContent = 'Processing…'; $('#voiceBtn').textContent = '🎙 Tap to speak';
     const form = new FormData(); form.append('audio', new Blob(chunks, { type: mime }), mime.includes('webm') ? 'a.webm' : 'a.m4a');
     try {
       const r = await api(url, { form });
+      if (!S.on || generation !== voiceGeneration) return;
       if (enrol) { toast('Voice saved.', 'ok'); loadPeople(); }
       else { addMsg('You' + (r.speaker && r.speaker.name ? ` (${r.speaker.name}?)` : ''), r.text || '(nothing heard)'); addMsg('Sawti', r.reply, r.actions); }
     } catch (e) { toast(e.message, 'fail'); }
     $('#voiceState').textContent = '';
   };
-  recorder.start();
+  try { media.start(1000); }
+  catch (e) { stopVoice(); toast(e.message, 'fail'); return; }
+  voiceTimer = setTimeout(() => { if (media.state === 'recording') media.stop(); }, 60000);
   $('#voiceState').textContent = enrol ? 'Recording voice sample — speak for 6+ seconds, tap again to stop' : 'Listening — tap again to stop';
   if (!enrol) $('#voiceBtn').textContent = '■ Tap to stop';
 }

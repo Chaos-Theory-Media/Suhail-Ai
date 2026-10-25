@@ -19,8 +19,15 @@ fi
 mkdir -p "$SUPPORT/run"
 cd "$HERE" || exit 1
 nohup "$PY" "$HERE/app.py" "$@" >> "$SUPPORT/run/sawti.log" 2>&1 &
+SAWTI_PID=$!
+READY=0
 for i in {1..60}; do
-  curl -fs --max-time 1 "$URL/api/app" >/dev/null 2>&1 && break
+  kill -0 "$SAWTI_PID" 2>/dev/null || break
+  curl -fs --max-time 1 "$URL/api/app" >/dev/null 2>&1 && { READY=1; break; }
   sleep 0.25
 done
+if (( ! READY )); then
+  print "Sawti did not become ready. Review $SUPPORT/run/sawti.log; no other process was stopped."
+  exit 1
+fi
 open "$URL"

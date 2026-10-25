@@ -8,7 +8,7 @@ import os
 import threading
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, g, jsonify, request, send_from_directory
 
 from . import VERSION, paths, store, voice
 from .agents import audition, chat, learning, levels, post
@@ -36,7 +36,12 @@ def create_app(studio):
     app.config["MAX_CONTENT_LENGTH"] = 8 * 1024 * 1024
 
     def body():
-        return request.get_json(silent=True) or {}
+        data = request.get_json(silent=True)
+        if data is None:
+            return {}
+        if not isinstance(data, dict):
+            raise ApiError("Expected a JSON object.")
+        return data
 
     @app.before_request
     def guard():
@@ -46,11 +51,31 @@ def create_app(studio):
             origin = request.headers.get("Origin")
             if request.headers.get("X-Sawti") != "1" or (origin and origin not in ALLOWED_ORIGINS):
                 return jsonify(error="Forbidden"), 403
-        if request.path.startswith("/api/") and not request.path.startswith(ALWAYS_OPEN) and not studio.lifecycle.on:
+        if request.method not in ("GET", "HEAD", "OPTIONS") and request.path.startswith('/api/'):
+            epoch = studio.power_epoch
+            studio.lock.acquire()
+            g.studio_locked = True
+            if epoch != studio.power_epoch and request.path not in ALWAYS_OPEN:
+                return jsonify(error="Sawti power changed while this request was waiting."), 409
+            # Read-only inference/conversion may take seconds. Do not delay OFF
+            # behind it; discard the response if its admission epoch changes.
+            if request.path in ('/api/chat', '/api/voice'):
+                g.admitted_epoch = epoch
+                g.studio_locked = False
+                studio.lock.release()
+        if request.path.startswith("/api/") and request.path not in ALWAYS_OPEN and not studio.lifecycle.on:
             return jsonify(error="Sawti is OFF. Switch it ON first."), 503
+
+    @app.teardown_request
+    def release_lock(error):
+        if g.pop('studio_locked', False):
+            studio.lock.release()
 
     @app.after_request
     def headers(resp):
+        if hasattr(g, 'admitted_epoch') and (g.admitted_epoch != studio.power_epoch or not studio.lifecycle.on):
+            resp = jsonify(error='Sawti was switched OFF; this result was discarded.')
+            resp.status_code = 503
         resp.headers["X-Frame-Options"] = "DENY"
         resp.headers["X-Content-Type-Options"] = "nosniff"
         resp.headers["Referrer-Policy"] = "no-referrer"
@@ -72,6 +97,12 @@ def create_app(studio):
         except (ValueError, RuntimeError, OSError) as exc:
             raise ApiError(str(exc), 422)
 
+    @app.errorhandler(ValueError)
+    @app.errorhandler(RuntimeError)
+    @app.errorhandler(OSError)
+    def operation_error(exc):
+        return jsonify(error=str(exc)), 422
+
     # ------------------------------------------------------------ pages
     @app.get("/")
     def index():
@@ -80,7 +111,8 @@ def create_app(studio):
     @app.get("/api/app")
     def app_info():
         info = studio.snapshot()
-        info.update(version=VERSION, voice=voice.available(), helper=studio.audio.helper_available())
+        capability = dict(transcribe=False, identify=False) if studio.audio.simulated else voice.available()
+        info.update(version=VERSION, voice=capability, helper=studio.audio.helper_available())
         return jsonify(info)
 
     # ------------------------------------------------------------ power
@@ -122,9 +154,16 @@ def create_app(studio):
 
     @app.post("/api/action")
     def action():
-        name = str(body().get("action", ""))
-        msg = run(lambda: studio.apply(name))
+        d = body()
+        name = str(d.get("action", ""))
+        msg = run(lambda: studio.apply(name, approval=d.get('approval'),
+                                      operator_confirmed=d.get('operator_confirmed'),
+                                      studio_idle=d.get('studio_idle')))
         return jsonify(message=msg, findings=studio.check_all())
+
+    @app.post('/api/action/review')
+    def action_review():
+        return jsonify(run(lambda: studio.approvals.review(str(body().get('action', '')))))
 
     @app.post("/api/confirm")
     def confirm():
@@ -187,7 +226,10 @@ def create_app(studio):
 
     @app.post("/api/session/prepare")
     def session_prepare():
-        title = (body().get("title") or "").strip()
+        title = body().get("title", "")
+        if not isinstance(title, str):
+            raise ApiError('Session title must be text.')
+        title = title.strip()
         if title:
             import re
             title = re.sub(r"[^\w\- ]+", "", title).strip().replace(" ", "_")[:80] or None
@@ -215,14 +257,20 @@ def create_app(studio):
     @app.post("/api/post/automix")
     def post_automix():
         d = body()
-        files = [_wav(f) for f in (d.get("files") or [])][:16]
-        name = (d.get("name") or (studio.state.get("session") or {}).get("name") or "Episode")[:80]
+        files = [_wav(f) for f in file_list(d, 16)]
+        name = d.get("name") or (studio.state.get("session") or {}).get("name") or "Episode"
         return jsonify(job=post.start_automix(studio, files, name))
 
     @app.post("/api/post/qc")
     def post_qc():
-        files = [_wav(f) for f in (body().get("files") or [])][:32]
+        files = [_wav(f) for f in file_list(body(), 32)]
         return jsonify(job=post.start_qc(files))
+
+    def file_list(data, maximum):
+        files = data.get('files')
+        if not isinstance(files, list) or not 1 <= len(files) <= maximum or not all(isinstance(f, str) for f in files):
+            raise ApiError(f"Select 1–{maximum} audio files.")
+        return files
 
     @app.get("/api/jobs/<jid>")
     def job(jid):
@@ -243,7 +291,9 @@ def create_app(studio):
     @app.post("/api/learning/autofix")
     def learning_autofix():
         d = body()
-        run(lambda: studio.approve_autofix(str(d.get("action", "")), bool(d.get("enabled", True))))
+        if type(d.get('enabled', True)) is not bool:
+            raise ApiError('enabled must be true or false.')
+        run(lambda: studio.approve_autofix(str(d.get("action", "")), d.get("enabled", True)))
         return jsonify(learning.insights(studio))
 
     @app.post("/api/learning/reset")
@@ -259,11 +309,18 @@ def create_app(studio):
 
     @app.post("/api/settings")
     def settings_post():
+        updates = {}
         for k, v in body().items():
             if k not in SETTING_RULES:
                 raise ApiError(f"Unknown setting {k}")
             typ = SETTING_RULES[k]
             try:
+                if typ is bool and type(v) is not bool:
+                    raise ValueError()
+                if typ is str and not isinstance(v, str):
+                    raise ValueError()
+                if typ is dict and not isinstance(v, dict):
+                    raise ValueError()
                 v = typ(v) if typ is not dict else dict(v)
             except (TypeError, ValueError):
                 raise ApiError(f"Invalid value for {k}")
@@ -271,7 +328,6 @@ def create_app(studio):
                 p = Path(v).expanduser()
                 if not p.is_absolute():
                     raise ApiError("Recording folder must be a full path, e.g. /Users/studio/Music/Recordings")
-                p.mkdir(parents=True, exist_ok=True)
                 v = str(p)
             if k == "loudness_target" and not -24 <= v <= -12:
                 raise ApiError("Loudness target must be between -24 and -12 LUFS.")
@@ -279,7 +335,31 @@ def create_app(studio):
                 raise ApiError("True-peak ceiling must be between -3 and 0 dBTP.")
             if k == "speech_target" and not -26 <= v <= -14:
                 raise ApiError("Speech target must be between -26 and -14 LUFS.")
-            store.put(k, v)
+            if k in ('source_names', 'show_name'):
+                for mode, names in v.items():
+                    if mode not in ('local', 'zoom'):
+                        raise ApiError('Unknown show type in names.')
+                    valid = (isinstance(names, str) and 0 < len(names) <= 80) if k == 'show_name' else (
+                        isinstance(names, dict) and all(isinstance(n, str) and isinstance(t, str)
+                                                      and len(t) <= 60 for n, t in names.items()))
+                    if not valid:
+                        raise ApiError(f'Invalid value for {k}')
+            if k == 'llm_model' and v != 'qwen3:4b':
+                raise ApiError('Only the approved local qwen3:4b model is supported.')
+            if k == 'leveler_enabled' and v and not studio.audio.simulated:
+                raise ApiError('Inline output is not qualified on this Mac. Use capture-only monitoring.')
+            if (k in ('leveler_enabled', 'leveler_output', 'recording_root') and studio.live
+                    and v != studio.settings(k)):
+                raise ApiError('End the live show before changing audio or recording settings.', 409)
+            updates[k] = v
+        for k, v in updates.items():
+            if k == 'recording_root':
+                Path(v).mkdir(parents=True, exist_ok=True)
+        with store.closing(store.connect()) as db, db:
+            import json
+            db.executemany('INSERT OR REPLACE INTO settings VALUES (?,?)',
+                           [(k, json.dumps(v)) for k, v in updates.items()])
+        studio.approvals.invalidate()
         return settings_get()
 
     # ------------------------------------------------------------ presenters & voice (optional)
@@ -301,6 +381,8 @@ def create_app(studio):
 
     @app.post("/api/presenters/<int:pid>/voice")
     def presenter_voice(pid):
+        if studio.audio.simulated:
+            raise ApiError('Simulation does not capture or enrol real voices.')
         f = request.files.get("audio")
         if not f:
             raise ApiError("No audio received.")
@@ -309,13 +391,18 @@ def create_app(studio):
 
     @app.post("/api/chat")
     def chat_msg():
-        text = (body().get("message") or "").strip()[:2000]
+        text = body().get("message", "")
+        if not isinstance(text, str):
+            raise ApiError('Message must be text.')
+        text = text.strip()[:2000]
         if not text:
             raise ApiError("Type a question first.")
         return jsonify(run(lambda: chat.answer(studio, text)))
 
     @app.post("/api/voice")
     def voice_cmd():
+        if studio.audio.simulated:
+            raise ApiError('Simulation does not use real microphones or voice models.')
         f = request.files.get("audio")
         if not f:
             raise ApiError("No audio received.")

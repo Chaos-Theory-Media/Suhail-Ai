@@ -16,7 +16,10 @@ def check(studio, mode, devs):
                          "Check the USB cable and that the Scarlett is switched on. If it is connected, "
                          "open Focusrite Control 2 to wake it.", "open_focusrite", "Open Focusrite Control 2"))
     else:
-        if sc["rate"] != 48000:
+        if not sc.get('rate_verified', True):
+            F.append(finding('scarlett_rate', AGENT, 'manual', 'Scarlett operating rate is unverified',
+                             'The helper is unavailable; PortAudio reports a default, not verified current state.'))
+        elif sc["rate"] != 48000:
             F.append(finding("scarlett_rate", AGENT, "fail", f"Scarlett is at {sc['rate'] / 1000:g} kHz",
                              "Podcast sessions run at 48 kHz. Mismatched rates cause clicks and drift.",
                              "set_scarlett_48k", "Set to 48 kHz"))
@@ -42,7 +45,10 @@ def check(studio, mode, devs):
                                  f"Sawti will create '{SHOW_INPUT_NAME}' (Scarlett inputs + Zoom guests) for Audition.",
                                  "create_show_input", "Create it"))
             else:
-                lay = input_layout(agg, devs)
+                try:
+                    lay = input_layout(agg, devs)
+                except RuntimeError:
+                    lay = {}
                 if "scarlett" not in lay or "blackhole" not in lay:
                     F.append(finding("show_input", AGENT, "fail", f"'{SHOW_INPUT_NAME}' is incomplete",
                                      "One of its devices is missing (often after unplugging the Scarlett).",
@@ -115,6 +121,9 @@ def create_show_input(studio):
 
 
 def repair_show_input(studio):
+    _, _, bh = _sc_bh(studio)
+    if not bh:
+        raise RuntimeError('BlackHole 2ch is unavailable; existing aggregate was not removed.')
     studio.audio.destroy(SHOW_INPUT_UID)
     return create_show_input(studio)
 
@@ -129,10 +138,16 @@ def create_zoom_speaker(studio):
 
 
 ACTIONS = [
-    Action("set_scarlett_48k", "Set Scarlett to 48 kHz", set_scarlett_48k, safe=True, agent=AGENT),
-    Action("set_blackhole_48k", "Set BlackHole to 48 kHz", set_blackhole_48k, safe=True, agent=AGENT),
-    Action("set_show_input_48k", "Set show input to 48 kHz", set_show_input_48k, safe=True, agent=AGENT),
-    Action("create_show_input", "Create Sawti Show Input", create_show_input, safe=True, agent=AGENT),
-    Action("repair_show_input", "Rebuild Sawti Show Input", repair_show_input, safe=True, agent=AGENT),
-    Action("create_zoom_speaker", "Create Sawti Zoom Speaker", create_zoom_speaker, safe=True, agent=AGENT),
+    Action("set_scarlett_48k", "Set Scarlett to 48 kHz", set_scarlett_48k, agent=AGENT,
+           impact="Changes the Scarlett hardware sample rate; may interrupt every app using it."),
+    Action("set_blackhole_48k", "Set BlackHole to 48 kHz", set_blackhole_48k, agent=AGENT,
+           impact="Changes the BlackHole sample rate; may interrupt Zoom or recording."),
+    Action("set_show_input_48k", "Set show input to 48 kHz", set_show_input_48k, agent=AGENT,
+           impact="Changes the aggregate sample rate; may interrupt connected audio apps."),
+    Action("create_show_input", "Create Sawti Show Input", create_show_input, agent=AGENT,
+           impact="Creates an aggregate and may change Scarlett/BlackHole sample rates to 48 kHz."),
+    Action("repair_show_input", "Rebuild Sawti Show Input", repair_show_input, agent=AGENT,
+           impact="Deletes and recreates Sawti Show Input; interrupts apps using that device."),
+    Action("create_zoom_speaker", "Create Sawti Zoom Speaker", create_zoom_speaker, agent=AGENT,
+           impact="Creates a shared Scarlett/BlackHole output device. Verify routing before use."),
 ]

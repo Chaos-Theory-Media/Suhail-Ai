@@ -40,9 +40,9 @@ def check(studio, mode, meter, apps):
         F.append(finding("awake", AGENT, "warn" if studio.live else "info", "Mac may go to sleep during a long show",
                          "", "keep_awake", "Keep the Mac awake"))
     if meter.get("running") and meter.get("digital_silence"):
-        F.append(finding("mic_permission", AGENT, "fail", "macOS is blocking the microphones for Sawti",
-                         "Every input is exact digital silence — that is a permission block, not the gain knobs. "
-                         "Allow 'Terminal' (or 'Sawti') under Privacy & Security › Microphone, then press Start again.",
+        F.append(finding("mic_permission", AGENT, "fail", "All inputs report digital silence; cause unverified",
+                         "Silence can come from a muted/disconnected source, routing, or microphone permissions. "
+                         "Check the signal path and Privacy & Security › Microphone; do not assume a cause.",
                          "open_mic_privacy", "Open microphone settings"))
     if not app_running(apps, "focusrite control"):
         F.append(finding("fc2_app", AGENT, "info", "Focusrite Control 2 is closed",
@@ -103,7 +103,8 @@ ACTIONS = [
     Action("keep_awake", "Keep the Mac awake", keep_awake, safe=True, live_safe=True, agent=AGENT),
     Action("open_mic_privacy", "Open microphone settings", open_mic_privacy, live_safe=True, agent=AGENT),
     Action("open_accessibility", "Open Accessibility settings", open_accessibility, live_safe=True, agent=AGENT),
-    Action("open_focusrite", "Open Focusrite Control 2", open_focusrite, safe=True, live_safe=True, agent=AGENT),
-    Action("open_zoom", "Open Zoom", open_zoom, safe=True, live_safe=True, agent=AGENT),
+    Action("open_focusrite", "Open Focusrite Control 2", open_focusrite, live_safe=True, agent=AGENT),
+    Action("open_zoom", "Open Zoom", open_zoom, agent=AGENT,
+           impact="Starts Zoom, which may activate its configured microphone and speaker devices."),
     Action("open_audio_midi", "Open Audio MIDI Setup", open_audio_midi, live_safe=True, agent=AGENT),
 ]

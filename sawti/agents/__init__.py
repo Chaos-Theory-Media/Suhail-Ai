@@ -18,6 +18,7 @@ class Action:
     live_safe — allowed while a show is live (device/routing changes are NOT)
     """
 
-    def __init__(self, name, label, fn, safe=False, live_safe=False, agent=""):
+    def __init__(self, name, label, fn, safe=False, live_safe=False, agent="", impact=None):
         self.name, self.label, self.fn = name, label, fn
         self.safe, self.live_safe, self.agent = safe, live_safe, agent
+        self.impact = impact

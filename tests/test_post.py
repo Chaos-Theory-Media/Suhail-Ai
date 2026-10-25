@@ -13,6 +13,8 @@ from sawti.studio import Studio
 class PostTests(unittest.TestCase):
     def test_session_mix_and_master_job(self):
         st = Studio()
+        st.lifecycle.on = True
+        self.addCleanup(st.power_off)
         d = tempfile.mkdtemp()
         rec = os.path.join(d, "Show_Recorded")
         os.makedirs(rec)

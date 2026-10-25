@@ -3,6 +3,7 @@ standard. Runs as background jobs; never overwrites the original recordings."""
 import threading
 import time
 import uuid
+import re
 from pathlib import Path
 
 from .. import dsp
@@ -72,7 +73,9 @@ def master(studio, src, progress=None):
     src = Path(src).expanduser()
     if not src.is_file():
         raise ValueError("File not found.")
-    dst = src.with_name(src.stem + "_master.wav")
+    if studio.live:
+        raise RuntimeError('End the live show before post-production.')
+    dst = _export_folder(src.parent) / (src.stem + "_master.wav")
     r = dsp.master_file(src, dst, studio.settings("loudness_target"), studio.settings("true_peak"), progress=progress)
     r["output"] = str(dst)
     studio.learn("mastered", lufs=r["after"]["integrated_lufs"], within=r["within_spec"])
@@ -83,7 +86,10 @@ def automix_and_master(studio, files, out_name, progress=None):
     files = [str(Path(f).expanduser()) for f in files]
     if not files:
         raise ValueError("No recorded tracks found.")
-    folder = Path(files[0]).parent
+    if studio.live:
+        raise RuntimeError('End the live show before post-production.')
+    out_name = _export_name(out_name)
+    folder = _export_folder(Path(files[0]).parent)
     mix = folder / f"{out_name}_mix.wav"
     dsp.automix(files, mix, progress=lambda p: progress and progress(0.4 * p))
     dst = folder / f"{out_name}_master.wav"
@@ -94,11 +100,34 @@ def automix_and_master(studio, files, out_name, progress=None):
     return r
 
 
+def _export_name(name):
+    if not isinstance(name, str) or not name.strip() or len(name) > 80:
+        raise ValueError('Enter an output name of 1–80 characters.')
+    if name in ('.', '..') or re.search(r'[/\\\x00-\x1f]', name):
+        raise ValueError('The output name must be a filename, not a path.')
+    return name.strip()
+
+
+def _export_folder(parent):
+    # Each job owns a fresh directory. Concurrent/repeated exports cannot
+    # overwrite original tracks, previous exports, or symlink destinations.
+    folder = parent / ('Sawti-Export-' + uuid.uuid4().hex)
+    folder.mkdir(exist_ok=False)
+    return folder
+
+
 def start_master(studio, src):
+    studio.require_on()
+    if studio.live:
+        raise RuntimeError('End the live show before post-production.')
     return _job("master", lambda progress: master(studio, src, progress))
 
 
 def start_automix(studio, files, out_name):
+    studio.require_on()
+    if studio.live:
+        raise RuntimeError('End the live show before post-production.')
+    _export_name(out_name)
     return _job("automix", lambda progress: automix_and_master(studio, files, out_name, progress))
 
 

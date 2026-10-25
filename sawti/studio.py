@@ -11,6 +11,7 @@ from .agents.pretest import Pretest
 from .coreaudio import SHOW_INPUT_NAME, SHOW_INPUT_UID, find_blackhole, find_scarlett, find_uid, input_layout, make_audio
 from .lifecycle import Lifecycle
 from .meter import Monitor
+from .safety import Approvals, powered, serialised
 
 SEVERITY_ORDER = {"fail": 0, "warn": 1, "manual": 2, "info": 3, "ok": 4}
 
@@ -19,7 +20,7 @@ class Studio:
     def __init__(self, audio=None):
         self.audio = audio or make_audio()
         self.monitor = Monitor(self.audio)
-        self.lifecycle = Lifecycle()
+        self.lifecycle = Lifecycle(allow_ai=not self.audio.simulated)
         self.lock = threading.RLock()
         self.mode = "local"
         self.live = False
@@ -37,6 +38,12 @@ class Studio:
             self.actions[a.name] = a
         self._scheduler = None
         self._stop = threading.Event()
+        self.power_epoch = 0
+        self.approvals = Approvals(self)
+
+    def require_on(self):
+        if not self.lifecycle.on:
+            raise RuntimeError("Sawti is OFF. Switch it ON first.")
 
     # ------------------------------------------------------------ storage passthrough
     def settings(self, key):
@@ -144,6 +151,9 @@ class Studio:
         cfg = dict(device_index=dev["index"], device_name=dev["name"], rate=int(dev["rate"] or 48000),
                    open_channels=max(c for s in sources for c in s["chans"]) + 1, sources=sources, leveler=None)
         if self.settings("leveler_enabled"):
+            if not self.audio.simulated:
+                raise RuntimeError("Inline audio output is not qualified for production. Disable the leveler; "
+                                   "capture-only monitoring remains available. The leveler can be tested in simulation.")
             want = self.settings("leveler_output")
             out = next((d for d in devs if d["name"] == want and d["outputs"] > 0), None)
             zoom_bh = find_blackhole(devs, 2)
@@ -155,6 +165,9 @@ class Studio:
             prog = [s for s in sources if s["role"] in ("programme", "remote")]
             cfg["leveler"] = dict(enabled=True, out_index=out["index"], out_channels=min(out["outputs"], len(prog)),
                                   target=self.settings("speech_target"), out_name=out["name"])
+        if not self.audio.simulated and (not dev.get('rate_verified') or not dev.get('rate')):
+            raise RuntimeError('Current operating sample rate is unverified. Install/repair the read-only audio '
+                               'helper before capture; Sawti will not request a guessed default rate.')
         return cfg
 
     def ensure_meter(self):
@@ -162,6 +175,7 @@ class Studio:
             return self.start_meter()
         return True
 
+    @powered
     def start_meter(self):
         try:
             cfg = self.meter_config()
@@ -170,6 +184,7 @@ class Studio:
             return False
         return self.monitor.start(cfg)
 
+    @serialised
     def stop_meter(self):
         self.monitor.stop()
 
@@ -198,7 +213,8 @@ class Studio:
         self.learn("manual_confirmed", mode=self.mode, check=fid)
 
     # ------------------------------------------------------------ actions
-    def apply(self, name, by="operator"):
+    @powered
+    def apply(self, name, by="operator", approval=None, operator_confirmed=False, studio_idle=False):
         meta = {
             "fix_all": lambda: self.fix_all(),
             "pretest": lambda: (self.pretest.start(), "Pre-test started.")[1],
@@ -215,17 +231,28 @@ class Studio:
             raise ValueError("Unknown action")
         if self.live and not a.live_safe:
             raise RuntimeError("Not while recording — Sawti never changes devices or routing during a live show.")
+        if a.impact:
+            if by != "operator":
+                raise RuntimeError("Audio-impact actions require a fresh operator approval every time.")
+            self.approvals.consume(name, approval, operator_confirmed, studio_idle)
+            self.state.pop('confirmed', None)
+            if a.agent == 'Devices':
+                self.pretest.cancel()
+                self.stop_meter()  # release only Sawti capture before the authorised change
         msg = a.fn(self)
+        self.approvals.invalidate()
         self._dev_cache = (0.0, [])
         self.save_state()
         self.learn("fix_applied", action=name, by=by, mode=self.mode)
         return msg
 
+    @powered
     def fix_all(self, by="operator"):
         done, failed, seen = [], [], set()
         for _ in range(3):  # fixes can unlock further fixes (e.g. rate -> aggregate)
             todo = [f for f in self.check_all() if f["severity"] in ("fail", "warn") and f.get("action")
-                    and f["action"] in self.actions and self.actions[f["action"]].safe and f["action"] not in seen]
+                    and f["action"] in self.actions and self.actions[f["action"]].safe
+                    and not self.actions[f["action"]].impact and f["action"] not in seen]
             if not todo:
                 break
             for f in todo:
@@ -234,18 +261,22 @@ class Studio:
                     done.append(self.apply(f["action"], by=by))
                 except Exception as exc:
                     failed.append(f"{f['title']}: {exc}")
-        msg = " ".join(done) if done else "Nothing I can fix automatically."
+        msg = " ".join(done) if done else "No non-audio fixes available."
+        msg += " Device, sample-rate and Audition changes require individual review and approval."
         if failed:
             msg += " Could not fix: " + "; ".join(failed)
         return msg
 
+    @powered
     def run_autofixes(self, reason="power-on"):
         approved = {k for k, v in (self.settings("autofix") or {}).items() if v}
         done = []
         if not approved or self.live:
             return done
         for f in self.check_all():
-            if f.get("action") in approved and f["severity"] in ("fail", "warn"):
+            a = self.actions.get(f.get("action"))
+            if (a and a.safe and not a.impact and f.get("action") in approved
+                    and f["severity"] in ("fail", "warn")):
                 try:
                     done.append(self.apply(f["action"], by="auto"))
                 except Exception as exc:
@@ -256,19 +287,24 @@ class Studio:
 
     def approve_autofix(self, action, enabled=True):
         a = self.actions.get(action)
-        if not a or not a.safe:
+        if not a or (enabled and (not a.safe or a.impact)):
             raise ValueError("That action cannot run automatically.")
         auto = self.settings("autofix") or {}
         auto[action] = bool(enabled)
         self.put_setting("autofix", auto)
 
     # ------------------------------------------------------------ mode & show
+    @serialised
     def set_mode(self, mode):
         if mode not in ("local", "zoom"):
             raise ValueError("Unknown show type")
+        if mode == self.mode:
+            return f"Already in {'Zoom Show' if mode == 'zoom' else 'Podcast'} mode."
         if self.live and mode != self.mode:
             raise RuntimeError("Finish the live show before switching show type.")
         was_running = self.monitor.running
+        self.pretest.cancel()
+        self.approvals.invalidate()
         self.mode = mode
         self.learn("mode_selected", mode=mode)
         if was_running:
@@ -276,25 +312,31 @@ class Studio:
             self.start_meter()
         return f"Switched to {'Zoom Show' if mode == 'zoom' else 'Podcast'}."
 
+    @powered
     def go_live(self, source="operator"):
         if self.live:
             return "Already live."
+        if not self.ensure_meter():
+            raise RuntimeError(self.monitor.error or 'Live monitoring could not start. Show was not marked live.')
         self.live, self.live_since = True, time.time()
+        self.approvals.invalidate()
         self.lifecycle.keep_awake(True)
-        self.ensure_meter()
         self.learn("show_started", mode=self.mode, source=source)
         return "Show is live. Sawti watches levels and will not touch devices until you end the show."
 
+    @serialised
     def end_live(self):
         if not self.live:
             return "No live show."
         dur = time.time() - (self.live_since or time.time())
         self.live, self.live_since = False, None
+        self.approvals.invalidate()
         self.learn("show_ended", mode=self.mode, minutes=round(dur / 60, 1))
         self.notify("Show ended. Post-production can now mix and master today's recordings.", "info")
         return f"Show ended after {dur / 60:.0f} min."
 
     # ------------------------------------------------------------ power & background work
+    @serialised
     def power_on(self, mode=None):
         if mode:
             self.set_mode(mode)
@@ -302,32 +344,40 @@ class Studio:
         done = self.run_autofixes("power-on")
         if done:
             self.notify("Done in advance: " + " ".join(done), "info")
-        if self._scheduler is None or not self._scheduler.is_alive():
-            self._stop.clear()
-            self._scheduler = threading.Thread(target=self._loop, daemon=True)
+        if self._scheduler is None or not self._scheduler.is_alive() or self._stop.is_set():
+            self._stop = threading.Event()
+            self._scheduler = threading.Thread(target=self._loop, args=(self._stop,), daemon=True)
             self._scheduler.start()
 
+    @serialised
     def power_off(self):
         self._stop.set()
+        self.power_epoch += 1
+        self.approvals.invalidate()
         if self.live:
             self.end_live()
-        self.pretest.cancel()
-        self.stop_meter()
-        self.lifecycle.power_off()
-
-    def _loop(self):
-        last_learn = 0
-        while not self._stop.wait(2.0):
-            if not self.lifecycle.on:
-                continue
+        try:
+            self.pretest.cancel()
+        finally:
             try:
-                if self.live and self.monitor.running:
-                    self._watch_live()
-                if time.time() - last_learn > 60:
-                    last_learn = time.time()
-                    learning.tick(self)
-            except Exception as exc:  # never let the background loop die
-                self.notify(f"Background check error: {exc}", "warn")
+                self.stop_meter()
+            finally:
+                self.lifecycle.power_off()
+
+    def _loop(self, stop):
+        last_learn = 0
+        while not stop.wait(2.0):
+            with self.lock:
+                if not self.lifecycle.on or stop.is_set():
+                    continue
+                try:
+                    if self.live and self.monitor.running:
+                        self._watch_live()
+                    if time.time() - last_learn > 60:
+                        last_learn = time.time()
+                        learning.tick(self)
+                except Exception as exc:
+                    self.notify(f"Background check error: {exc}", "warn")
 
     def _watch_live(self):
         snap = self.monitor.snapshot()
@@ -349,7 +399,8 @@ class Studio:
     def snapshot(self):
         lc = self.lifecycle.snapshot()
         return dict(on=lc["on"], mode=self.mode, live=self.live,
-                    live_minutes=round((time.time() - self.live_since) / 60, 1) if self.live else None,
+                    recording_state="unknown", power_epoch=self.power_epoch,
+                    live_minutes=round((time.time() - (self.live_since or time.time())) / 60, 1) if self.live else None,
                     ollama=lc["ollama"], ollama_detail=lc["ollama_detail"], keep_awake=lc["keep_awake"],
                     simulated=self.audio.simulated, session=self.state.get("session"),
                     notices=list(self.notices)[-8:])

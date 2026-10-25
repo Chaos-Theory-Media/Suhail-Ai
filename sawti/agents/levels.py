@@ -45,6 +45,8 @@ def assess(src, target=-20.0):
 
 
 def coach(studio, snapshot):
+    if snapshot.get('stale'):
+        return []
     target = studio.settings("speech_target")
     knobs = {s["id"]: s.get("gain_knob") for s in studio.profile(studio.mode)["sources"]}
     out = []
@@ -58,6 +60,9 @@ def check(studio, snapshot):
     F = []
     if not snapshot.get("running"):
         return F
+    if snapshot.get('stale'):
+        return [finding('meter_stalled', AGENT, 'fail', 'Meter data is unavailable or stale',
+                        'Do not infer microphone health from old samples. Check device and capture errors.')]
     for c in coach(studio, snapshot):
         if c["status"] in ("clip", "dead"):
             F.append(finding(f"level_{c['id']}", AGENT, "fail", c["message"]))

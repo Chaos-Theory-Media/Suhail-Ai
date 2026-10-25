@@ -8,6 +8,7 @@ patterns in priority order; answers use real check results instead of generic te
 import json
 import re
 import urllib.request
+import time
 
 from ..lifecycle import OLLAMA_HOST, OLLAMA_PORT
 
@@ -123,7 +124,7 @@ def answer(studio, text):
                 reply += (" If a mic stays silent while someone talks: check the XLR cable, the input number, the "
                           "gain knob, and 48V for condenser mics.")
             if snap.get("digital_silence"):
-                reply = "All inputs are digital silence — macOS is blocking microphone access, not the gain knobs."
+                reply = "All inputs are digital silence. The cause is unverified: check source, routing and microphone permission."
                 actions = [dict(action="open_mic_privacy", label="Open microphone settings")]
     elif intent == "audition":
         f = [x for x in findings if x["agent"] == "Audition"]
@@ -146,8 +147,8 @@ def answer(studio, text):
                      "Sawti Zoom Speaker or BlackHole), and Zoom's Speaker must be 'Sawti Zoom Speaker'. Ask the guest "
                      "to talk and confirm there is no echo.")
         elif intent == "talkback":
-            reply = ("Talkback is input 4. It goes to headphones only and is never recorded. The pre-test proves it "
-                     "does not reach any recorded mic.")
+            reply = ("The profile expects talkback on input 4. Its isolation is unverified. The pre-test observes "
+                     "monitored inputs only; test Audition track assignment and Zoom privacy with the operator.")
             actions = [dict(action="pretest", label="Run the pre-test")]
         elif intent == "guest_level":
             g = next((s for s in snap.get("sources", []) if s["role"] == "remote"), None)
@@ -187,8 +188,41 @@ def answer(studio, text):
     else:
         reply = ("Ask me to check the studio, run the pre-test, coach levels, prepare or open the Audition session, "
                  "press Record/Stop, check Zoom, or master the episode.")
+    if ar:
+        translations = {
+            'ready': f"يوجد {len(issues)} تنبيه يحتاج إلى المراجعة. افحص النتائج وأكمل الاختبار قبل التسجيل.",
+            'pretest': 'الاختبار يفحص الميكروفونات والتوك باك وعودة ضيف زوم. لا يغيّر التوجيه ولا يثبت عزل التوك باك في كل التطبيقات.',
+            'levels': 'شغّل المقاييس واطلب من كل مشارك الكلام. راجع مستوى الصوت والذروة لكل مدخل؛ لا أستطيع تدوير مقابض الكسب.',
+            'mic_silent': 'الصمت وحده لا يثبت السبب. افحص المصدر والكابل والمدخل والتوجيه وصلاحية الميكروفون. افحص 48V فقط إذا كان الميكروفون يحتاجها.',
+            'clip': 'عند حدوث قصّ للصوت، خفّض كسب المدخل يدوياً حتى تبقى الذروة دون ‎−6 dBFS. لا يمكن إصلاح القصّ بعد التسجيل.',
+            'audition': 'وجود عملية أوديشن لا يثبت حالة التسجيل. افحص الجلسة النشطة والمسارات المسلحة والمدخلات يدوياً.',
+            'session': 'يمكن تجهيز نسخة من القالب باسم اليوم. فتحها في أوديشن يحتاج إلى موافقة محددة بعد التأكد من توقف التسجيل.',
+            'talkback': 'يتوقع الملف التعريفي التوك باك على المدخل 4؛ العزل غير متحقق. اختبر عدم وصوله إلى مسارات أوديشن وإلى ضيف زوم يدوياً.',
+            'zoom': 'راجع جهاز الإدخال المجمع ومدخلات عودة الضيف وإعدادات زوم. لا تغيّر التوجيه أثناء التسجيل دون تفويض صريح.',
+            'blackhole': 'تحقق من وجود BlackHole 2ch بالضبط ومن ترتيب قنواته داخل الجهاز المجمع. لا يُستخدم إصدار 16ch بديلاً تلقائياً.',
+            'mixminus': 'اطلب من الضيف تأكيد أنه لا يسمع صدى صوته وأن التوك باك خاص. أسماء الأجهزة وحدها لا تثبت صحة التوجيه.',
+            'guest_level': 'شغّل المقاييس في وضع زوم واطلب من الضيف الكلام. تحقق من قناتي عودة الضيف قبل الاعتماد عليهما.',
+            'filename': 'اسم الجلسة المقترح: ' + learning_name(studio),
+            'save_where': 'مجلد التسجيل المحدد: ' + str(studio.settings('recording_root')),
+            'master': 'بعد توقف التسجيل، اختر الملفات للمزج والمعالجة إلى مستوى الحلقة المطلوب. تحفظ النتائج في مجلد تصدير جديد ولا تستبدل الملفات الأصلية.',
+            'record_start': 'بدء التسجيل يحتاج إلى موافقة محددة. تأكد من الجلسة النشطة واختصارات أوديشن وأن التسجيل الحالي متوقف.',
+            'record_stop': 'إرسال أمر الإيقاف قد يقطع التسجيل الجاري. لا ينفذ إلا بعد مراجعتك وموافقتك الصريحة.',
+            'fix': 'يمكن تطبيق الإصلاحات التي لا تؤثر في الصوت. تغييرات الأجهزة ومعدل العينات تحتاج إلى مراجعة وموافقة منفصلة.',
+            'awake': 'يمكن إبقاء الماك مستيقظاً أثناء تشغيل صوتي؛ لا يغيّر ذلك توجيه الصوت.',
+            'help': 'يمكنني مراقبة الاستوديو وإرشادك في الاختبار وتجهيز الجلسة وتحليل التسجيلات. تغييرات الصوت تحتاج إلى موافقتك.',
+        }
+        reply = translations.get(intent, 'راجع نتائج الاستوديو قبل أي تغيير.')
+        # Device names and technical findings may be English; never translate
+        # measurements into invented states or imply that a suggestion ran.
+        if issues and intent in ('ready', 'zoom', 'blackhole'):
+            reply += '\n' + '\n'.join(f['title'] for f in issues[:5])
     studio.learn("chat_intent", intent=intent)
     return dict(intent=intent, source="rule", reply=reply, actions=actions)
+
+
+def learning_name(studio):
+    from . import learning
+    return learning.suggest_name(studio, studio.mode)
 
 
 # ------------------------------------------------------------------ local AI
@@ -226,6 +260,9 @@ def _ollama(payload, timeout=40):
 
 def llm_status(studio):
     model = studio.settings("llm_model")
+    if (model != 'qwen3:4b' or not studio.lifecycle.on or studio.lifecycle.ollama_state != 'ready'
+            or not studio.lifecycle.ollama.running()):
+        return dict(running=False, model=model, available=False)
     try:
         with urllib.request.urlopen(f"http://{OLLAMA_HOST}:{OLLAMA_PORT}/api/tags", timeout=1.5) as f:
             names = [m.get("name", "") for m in json.load(f).get("models", [])]
@@ -242,10 +279,14 @@ def llm_answer(studio, text):
     from . import levels
     messages = [{"role": "system", "content": SYSTEM}, {"role": "user", "content": text[:2000]}]
     proposed = []
+    deadline = time.monotonic() + 40
     try:
         for _ in range(3):
+            if not studio.lifecycle.on or time.monotonic() >= deadline:
+                return None
             res = _ollama({"model": status["model"], "messages": messages, "tools": TOOLS, "stream": False,
-                           "think": False, "options": {"temperature": 0.2}})
+                           "think": False, "options": {"temperature": 0.2}},
+                          timeout=max(0.1, deadline - time.monotonic()))
             msg = res.get("message", {})
             calls = msg.get("tool_calls") or []
             if not calls:

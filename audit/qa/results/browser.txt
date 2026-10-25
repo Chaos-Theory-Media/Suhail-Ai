@@ -1,0 +1,15 @@
+✔ OFF never asks for microphone access (13.61561ms)
+✔ simulation never asks for a real microphone (2.525485ms)
+✔ OFF releases active browser capture and discards its upload (5.131582ms)
+✔ late permission grant after OFF releases tracks without starting capture (1.440704ms)
+✔ recorder construction failure releases the acquired microphone (1.31193ms)
+✔ server OFF from another client stops this tab after status sync (1.419691ms)
+✔ a delayed status response cannot re-enable UI after local OFF (3.674651ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 99.029819

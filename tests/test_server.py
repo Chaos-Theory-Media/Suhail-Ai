@@ -37,6 +37,7 @@ class SecurityTests(unittest.TestCase):
         r = self.c.get(BASE + "/")
         self.assertIn("script-src 'self'", r.headers["Content-Security-Policy"])
         self.assertEqual(r.headers["X-Frame-Options"], "DENY")
+        r.close()
 
     def test_presenter_delete_by_id_handles_any_name(self):
         self.c.post(BASE + "/api/power/on", json={}, headers=H)

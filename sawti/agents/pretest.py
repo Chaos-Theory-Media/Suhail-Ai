@@ -26,6 +26,9 @@ class Pretest:
     # ------------------------------------------------------------ build
     def start(self):
         st = self.studio
+        st.require_on()
+        if st.live:
+            raise RuntimeError('Run the sound check before the live show.')
         prof = st.profile(st.mode)
         steps = [dict(id="checks", kind="checks", title="Studio checks",
                       instruction="Sawti checks devices, the Mac and Audition. Fix anything red, then press Next.")]
@@ -51,6 +54,9 @@ class Pretest:
             s.update(status="pending", detail="", advice=[])
         self.steps, self.i, self.active, self.advised = steps, 0, True, set()
         st.ensure_meter()
+        if not st.monitor.running:
+            self.active = False
+            raise RuntimeError(st.monitor.error or 'Meters could not start; pre-test did not start.')
         self._enter()
         st.learn("pretest_started", mode=st.mode)
         return self.state()
@@ -67,6 +73,10 @@ class Pretest:
         step = self.steps[self.i]
         st = self.studio
         kind = step["kind"]
+        snapshot = st.monitor.snapshot()
+        if kind not in ('checks', 'record') and (not snapshot['running'] or snapshot.get('stale')):
+            step.update(status='fail', detail='No fresh meter samples. Signal checks are unverified.')
+            return
         if kind == "checks":
             findings = st.check_all()
             fails = [f for f in findings if f["severity"] == "fail"]
@@ -122,7 +132,8 @@ class Pretest:
                                       "Check Focusrite Control 2 routing (load the show preset).")
                 else:
                     step["status"] = "pass"
-                    step["detail"] = "Talkback is on its own input and not on any recorded mic."
+                    step["detail"] = ("No comparable signal observed on the monitored programme inputs. "
+                                      "Audition track assignment and Zoom talkback privacy still require a manual test.")
             elif elapsed > STEP_TIMEOUT:
                 step["status"] = "fail"
                 step["detail"] = "No talkback signal. Check the talkback mic cable and input 4."
@@ -131,6 +142,8 @@ class Pretest:
 
     def check_recording(self):
         """Operator finished the test take: find new audio in today's session folder and QC it."""
+        if not self.active or self.i >= len(self.steps) or self.steps[self.i]['kind'] != 'record':
+            raise ValueError('Navigate to the test-recording step first.')
         step = self.steps[self.i]
         st = self.studio
         sess = st.state.get("session")
@@ -151,7 +164,9 @@ class Pretest:
         if bad:
             step.update(status="warn", detail="; ".join(f"{Path(q['path']).name}: {', '.join(q['issues'])}" for q in bad))
         else:
-            step.update(status="pass", detail=f"{len(qc)} track(s) recorded with signal and no clipping.")
+            required = len(st.profile(st.mode).get('audition_tracks', []))
+            step.update(status="warn", detail=f"{len(qc)} file(s) have signal; {required} tracks are expected. "
+                        "File count does not verify track identity, input mapping or talkback exclusion. Listen back in Audition.")
         return self.state()
 
     # ------------------------------------------------------------ navigation
@@ -160,7 +175,7 @@ class Pretest:
             self._evaluate()
         done = self.active and self.i >= len(self.steps)
         return dict(active=self.active, index=self.i, steps=self.steps, done=done,
-                    ready=done and all(s["status"] in ("pass", "skipped") for s in self.steps))
+                    ready=done and all(s["status"] == "pass" for s in self.steps))
 
     def next(self):
         if not self.active or self.i >= len(self.steps):
@@ -173,7 +188,7 @@ class Pretest:
         else:
             self.studio.monitor.unmark("pretest")
             self.studio.monitor.sim_focus = None
-            ok = all(s["status"] in ("pass", "skipped") for s in self.steps)
+            ok = all(s["status"] == "pass" for s in self.steps)
             self.studio.learn("pretest_done", mode=self.studio.mode, ok=ok,
                               failed=[s["id"] for s in self.steps if s["status"] in ("fail", "warn")])
         return self.state()

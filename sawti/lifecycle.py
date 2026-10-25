@@ -29,10 +29,19 @@ def port_open(port, host="127.0.0.1"):
 
 def _pid_alive(pid):
     try:
-        os.kill(pid, 0)
-        return True
-    except (OSError, TypeError):
+        import psutil
+        return psutil.Process(pid).is_running() and psutil.Process(pid).status() != psutil.STATUS_ZOMBIE
+    except Exception:
         return False
+
+
+def _identity(pid):
+    try:
+        import psutil
+        p = psutil.Process(pid)
+        return dict(pid=pid, created=p.create_time(), command=p.cmdline(), uid=p.uids().real)
+    except Exception:
+        return None
 
 
 def _cmdline(pid):
@@ -59,17 +68,21 @@ class Managed:
             info = json.loads(self.pidfile.read_text())
         except Exception:
             info = {}
-        pid, marker = info.get("pid"), info.get("marker", "")
+        pid = info.get("pid")
         killed = False
-        if pid and _pid_alive(pid) and marker and marker in _cmdline(pid):
+        # Old marker-only pidfiles are insufficient proof of ownership. PID reuse
+        # must never terminate a foreign Ollama/caffeinate process.
+        identity = _identity(pid) if isinstance(pid, int) and pid > 1 else None
+        if (identity and info.get('identity') == identity and identity['uid'] == os.getuid()
+                and os.getpgid(pid) == pid):
             try:
-                os.kill(pid, signal.SIGTERM)
+                os.killpg(pid, signal.SIGTERM)
                 for _ in range(30):
                     if not _pid_alive(pid):
                         break
                     time.sleep(0.1)
                 if _pid_alive(pid):
-                    os.kill(pid, signal.SIGKILL)
+                    os.killpg(pid, signal.SIGKILL)
                 killed = True
             except OSError:
                 pass
@@ -78,10 +91,11 @@ class Managed:
 
     def start(self, argv, env=None, marker=None):
         self.stop()
-        self.proc = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                     stderr=open(paths.run_dir() / f"{self.name}.log", "ab"),
-                                     start_new_session=True)
-        self.pidfile.write_text(json.dumps({"pid": self.proc.pid, "marker": marker or argv[0]}))
+        with open(paths.run_dir() / f"{self.name}.log", "ab") as log:
+            self.proc = subprocess.Popen(argv, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                         stderr=log, start_new_session=True)
+        self.pidfile.write_text(json.dumps({"pid": self.proc.pid, "identity": _identity(self.proc.pid)}))
+        self.pidfile.chmod(0o600)
         return self.proc
 
     def running(self):
@@ -90,17 +104,30 @@ class Managed:
     def stop(self):
         p, self.proc = self.proc, None
         if p is not None and p.poll() is None:
-            p.terminate()
+            # start_new_session gives this owned child its own process group.
+            # Never send signals by executable name or an occupied port.
+            group = False
+            try:
+                group = os.getpgid(p.pid) == p.pid
+                if group:
+                    os.killpg(p.pid, signal.SIGTERM)
+                else:
+                    p.terminate()
+            except ProcessLookupError:
+                pass
             try:
                 p.wait(timeout=5)
             except subprocess.TimeoutExpired:
-                p.kill()
+                if group:
+                    os.killpg(p.pid, signal.SIGKILL)
+                else:
+                    p.kill()
                 p.wait(timeout=3)
         self.pidfile.unlink(missing_ok=True)
 
 
 class Lifecycle:
-    def __init__(self):
+    def __init__(self, allow_ai=True):
         self.lock = threading.RLock()
         self.on = False
         self.ollama = Managed("ollama")
@@ -108,6 +135,7 @@ class Lifecycle:
         self.ollama_state = "stopped"   # stopped | starting | ready | failed | missing | external
         self.ollama_detail = ""
         self._installed = False
+        self.allow_ai = allow_ai
 
     def install_handlers(self):
         """Make sure Sawti-owned children die with Sawti, whatever way it ends."""
@@ -134,14 +162,16 @@ class Lifecycle:
             if self.on:
                 return
             self.on = True
-        self.start_ollama()
+            self.start_ollama()
 
     def power_off(self):
         with self.lock:
             self.on = False
-            self.ollama.stop()
-            self.ollama_state = "stopped"
-            self.keep_awake(False)
+            try:
+                self.ollama.stop()
+            finally:
+                self.ollama_state = "stopped"
+                self.keep_awake(False)
 
     def shutdown(self):
         try:
@@ -151,41 +181,56 @@ class Lifecycle:
 
     # ------------------------------------------------------------ Ollama
     def start_ollama(self):
+        if not self.allow_ai:
+            self.ollama_state, self.ollama_detail = 'disabled', 'Simulation uses built-in agents; real AI services are untouched.'
+            return
         binary = paths.ollama_binary()
         if not binary:
             self.ollama_state, self.ollama_detail = "missing", "Local AI not installed — Sawti works with its built-in agents."
             return
         if port_open(OLLAMA_PORT):
-            # Something already listens: a stale Sawti Ollama is cleaned in install_handlers; otherwise reuse it.
-            self.ollama_state, self.ollama_detail = "external", "Using the AI service already running on port 11439."
+            self.ollama_state, self.ollama_detail = "failed", "Port 11439 is occupied by an unverified service. It was not contacted or stopped."
             return
         env = os.environ.copy()
         env["OLLAMA_HOST"] = f"{OLLAMA_HOST}:{OLLAMA_PORT}"
         env["OLLAMA_MODELS"] = str(paths.models_dir())
+        env['OLLAMA_NO_CLOUD'] = '1'
         try:
             self.ollama.start([binary, "serve"], env=env, marker=binary)
         except OSError as exc:
             self.ollama_state, self.ollama_detail = "failed", f"Local AI could not start: {exc}"
             return
         self.ollama_state, self.ollama_detail = "starting", "Local AI is starting…"
-        threading.Thread(target=self._wait_ollama, daemon=True).start()
+        threading.Thread(target=self._wait_ollama, args=(self.ollama.proc,), daemon=True).start()
 
-    def _wait_ollama(self):
+    def _wait_ollama(self, owned):
         for _ in range(60):
-            if not self.ollama.running():
-                self.ollama_state, self.ollama_detail = "failed", "Local AI stopped unexpectedly. See run/ollama.log."
-                return
+            with self.lock:
+                if not self.on or self.ollama.proc is not owned:
+                    return
+                if not self.ollama.running():
+                    self.ollama_state, self.ollama_detail = "failed", "Local AI stopped unexpectedly. See run/ollama.log."
+                    return
             try:
-                urllib.request.urlopen(f"http://{OLLAMA_HOST}:{OLLAMA_PORT}/api/tags", timeout=1)
-                self.ollama_state, self.ollama_detail = "ready", "Local AI ready."
+                with urllib.request.urlopen(f"http://{OLLAMA_HOST}:{OLLAMA_PORT}/api/tags", timeout=1) as response:
+                    names = [m.get('name') for m in json.load(response).get('models', [])]
+                with self.lock:
+                    if not self.on or self.ollama.proc is not owned or not self.ollama.running():
+                        return
+                    self.ollama_state = 'ready' if 'qwen3:4b' in names else 'missing'
+                    self.ollama_detail = 'Local Qwen3 4B ready.' if self.ollama_state == 'ready' else 'Install the exact local qwen3:4b model.'
                 return
             except Exception:
                 time.sleep(0.5)
-        self.ollama_state, self.ollama_detail = "failed", "Local AI did not answer within 30 seconds."
+        with self.lock:
+            if self.on and self.ollama.proc is owned:
+                self.ollama_state, self.ollama_detail = "failed", "Local AI did not answer within 30 seconds."
 
     # ------------------------------------------------------------ keep the Mac awake during shows
     def keep_awake(self, enable=True):
         if enable:
+            if not self.allow_ai:
+                return False  # training mode never creates real background services
             if self.awake.running():
                 return True
             if not os.path.exists("/usr/bin/caffeinate"):

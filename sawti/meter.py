@@ -101,6 +101,7 @@ class Monitor:
         import sounddevice as sd
         lv = config.get("leveler") or {}
         self.audio.stream_open = True
+        stream = None
         try:
             if lv.get("enabled"):
                 stream = sd.Stream(device=(config["device_index"], lv["out_index"]),
@@ -113,6 +114,11 @@ class Monitor:
                                         callback=self._input_callback)
             stream.start()
         except Exception:
+            if stream is not None:
+                try:
+                    stream.close()
+                except Exception:
+                    pass
             self.audio.stream_open = False
             raise
         with self.lock:
@@ -136,14 +142,22 @@ class Monitor:
         if stream is not None:
             try:
                 stream.stop()
-                stream.close()
             except Exception:
                 pass
+            finally:
+                try:
+                    stream.close()
+                except Exception:
+                    pass
             self.audio.stream_open = False
         if self.sim_thread is not None:
             self.sim_stop.set()
             self.sim_thread.join(timeout=2)
             self.sim_thread = None
+        with self.lock:
+            self.marks.clear()
+            self.leveler = None
+            self.leveler_gain = {}
 
     @property
     def running(self):
@@ -253,7 +267,8 @@ class Monitor:
                        rate=cfg["rate"] if cfg else None, simulated=self.audio.simulated,
                        leveler=bool(self.leveler), sources=[], mix_st=None, mix_m=None,
                        audio_age=round(now - self.last_audio, 1) if self.last_audio else None,
-                       digital_silence=False)
+                       digital_silence=False,
+                       stale=bool(cfg and (not self.last_audio or now - self.last_audio > 3.0)))
             if not cfg:
                 return out
             silent_all = bool(self.sources) and now - self.started_at > 2.5

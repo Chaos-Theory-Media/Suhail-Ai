@@ -1,8 +1,11 @@
-# Sawti 3.0 (صوتي): studio agents for IMI podcasts
+# Sawti 3.0.1 (صوتي): studio agents for IMI podcasts
+
+**QA status:** Linux tests and simulation are validated; Mac Studio hardware and installer qualification are pending. See [the QA report](audit/qa/REPORT.md). The original 3.0 upload is preserved at tag `sawti-3.0-upload`, and 2.2 at `sawti-2.2-baseline`.
+
+Audio-impact actions now require an individual, 30-second, single-use operator approval and an explicit check that production recording is idle. Stop requires specific approval to interrupt. Power-on and learned fixes cannot change sample rates, routing or Audition transport. Sawti cannot observe Audition recording state; LIVE is an operator marker.
 
 Sawti prepares the studio, runs the sound check, opens the right Audition session, watches levels during the
-show and masters the episode. The person running the show presses a few buttons. Sawti handles the technical
-setup.
+show and masters the episode. The person running the show presses a few buttons. Sawti assists with setup; the operator verifies the result before production use.
 
 Built for: Mac Studio (Apple silicon, macOS 14+), Focusrite Scarlett 18i8, Adobe Audition, Zoom, BlackHole.
 
@@ -27,7 +30,7 @@ In Audition, create a **48 kHz multitrack session**:
 * **Podcast:** three **mono** tracks named *Mic 1, Mic 2, Mic 3*, inputs Scarlett 1, 2, 3, all armed (R).
 * **Zoom Show:** the same, plus a **stereo** track *Zoom guests* whose input is the last two channels of
   **Sawti Show Input**. Create that device first: switch Sawti ON, choose Zoom Show, press
-  *Fix everything I can*.
+  *Create it*, then review and approve the individual device change while all recording is idle.
 
 Save the session. In Sawti, open **Prepare › Save the show template** and drag the .sesx file into the box.
 Press **Use as show template**. From then on, Sawti creates a dated copy of this template for every show.
@@ -41,24 +44,22 @@ the tabs:
 
 | Tab | What you do | What Sawti does |
 |---|---|---|
-| **1 · Prepare** | Press **Fix everything I can**. Tick the blue items after checking them. Press **Open in Audition**. | Sets 48 kHz, creates or repairs the Zoom audio devices, keeps the Mac awake, prepares today's session with the right name and folder, and opens it in Audition. |
-| **2 · Pre-test** | Press **Start pre-test** and follow the instructions (each person talks, then talkback, the Zoom guest, then a 10-second test recording). | Checks that every voice arrives on the right input at the right level and tells you which knob to turn and by how much. Catches swapped cables, talkback leaking into recordings, silent mics and macOS permission blocks. |
+| **1 · Prepare** | Press **Run non-audio fixes**. Review individual device changes separately. Tick the blue items after checking them. Press **Open in Audition**. | Offers sample-rate and device changes for individual approval, prepares a dated session, and opens it only after operator review. |
+| **2 · Pre-test** | Press **Start pre-test** and follow the instructions (each person talks, then talkback, the Zoom guest, then a 10-second test recording). | Checks that every voice arrives on the right input at the right level and tells you which knob to turn and by how much. Reports possible swapped inputs, silent signals and suspicious levels. Talkback privacy, permissions and actual recording paths still need operator verification. |
 | **3 · Live** | Press **Go live**, then **● Record**. | Watches every mic and warns you if one gets too quiet, too loud or clips. It refuses any device change while you are live. |
 | **4 · After the show** | Press **End show**, then **Mix & master selected tracks**. | Levels each speaker, closes mics that only pick up someone else, mixes, and masters to **−16 LUFS / −1 dBTP**. The originals are never changed. |
 
 **Ask Sawti** (right side) understands English and Arabic: *"check the studio"*, *"how are the levels?"*,
 *"صوتي، هل برنامج أوديشن يعمل؟"*. Answers come with buttons, so you can act straight away.
 
-**To close Sawti:** press **Quit** on the page. Closing the browser tab or a Terminal window does not leave
-anything running in the background.
+**To close Sawti:** press **Quit** on the page. Closing the browser tab releases its voice capture but leaves the control server running; use Quit for complete exit. Terminal signals have cleanup handlers, but an uncatchable crash still requires qualification.
 
 ---
 
 ## How Sawti learns
-* It learns **when shows usually happen**. About 45 minutes before a predicted show it runs the checks, applies
-  approved fixes and prepares the session, then tells you what it did.
+* It learns **when shows usually happen**. Automatic preparation is OFF by default. If explicitly enabled, it may prepare a session in the current mode; it never switches modes, changes devices or sends recording keystrokes automatically.
 * It learns **how you name sessions** (for example `IMI_Talks_2026-10-25`) and where you save them.
-* When you apply the same fix **twice**, it offers to do that fix automatically from then on. You can switch
+* When you apply the same non-audio fix **twice**, it can offer that fix automatically. Audio-impact actions are never eligible. You can switch
   this off again in **Learning**.
 * It remembers **gain habits**, for example *"Mic 2 usually needs about 6 dB more"*, and tells you before the
   guests arrive.
@@ -72,11 +73,9 @@ so practice runs don't affect what Sawti learns about real shows.
 
 ## What Sawti cannot do (hardware and vendor limits)
 * **The gain knobs on the Scarlett 18i8 are analogue**, so no software can turn them. Sawti tells you which
-  knob to turn and by how many dB. It confirms the result in the sound check. The optional *inline leveler*
-  (Settings) can ride levels in software, but it is **off by default**. Test it outside live shows first.
+  knob to turn and by how many dB. It confirms the result in the sound check. The inline leveler DSP remains available in simulation. **Real inline output is blocked until qualified**, because stopping Sawti must not break a production audio path.
 * **Focusrite Control 2 has no public interface for other apps.** Routing is stored in the Scarlett, so save a
-  preset per show in Focusrite Control 2. Sawti's pre-test proves the result (for example, that talkback is not
-  on any recorded mic).
+  preset per show in Focusrite Control 2. Sawti's pre-test observes monitored inputs; it does not prove Audition track routing or Zoom talkback privacy. Verify those manually.
 * **Audition has no automation interface on macOS.** Sawti uses your template files and presses Record or Stop
   with keystrokes after you confirm.
 * **Zoom does not reveal which audio devices it is using.** Sawti shows the exact settings to choose and asks

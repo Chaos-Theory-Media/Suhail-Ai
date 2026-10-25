@@ -22,14 +22,16 @@ class StudioSimulationTests(unittest.TestCase):
     def tearDown(self):
         self.st.power_off()
 
-    def test_fix_all_repairs_sample_rate(self):
+    def test_fix_all_leaves_rate_for_individual_approval(self):
         self.assertTrue(any(f["id"] == "scarlett_rate" for f in self.st.check_all()))
         self.st.fix_all()
+        self.assertTrue(any(f["id"] == "scarlett_rate" for f in self.st.check_all()))
+        helpers.approved_action(self.st, 'set_scarlett_48k')
         self.assertFalse(any(f["id"] == "scarlett_rate" for f in self.st.check_all()))
 
     def test_zoom_devices_created_and_guest_channels_mapped(self):
         self.st.set_mode("zoom")
-        self.st.fix_all()
+        helpers.prepare_sim_audio(self.st)
         ids = {f["id"]: f["severity"] for f in self.st.check_all()}
         self.assertEqual(ids["show_input"], "ok")
         self.assertEqual(ids["zoom_speaker"], "ok")
@@ -42,7 +44,7 @@ class StudioSimulationTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.st.apply("set_scarlett_48k")
         self.st.end_live()
-        self.st.apply("set_scarlett_48k")
+        helpers.approved_action(self.st, "set_scarlett_48k")
 
     def test_template_and_session(self):
         info = audition.adopt_template(self.st, "local", os.path.join(helpers.FIXTURES, "podcast_template.sesx"))
@@ -56,7 +58,7 @@ class StudioSimulationTests(unittest.TestCase):
         self.assertIn("Today's session", audition.prepare_session(self.st, "local"))  # idempotent
 
     def test_meters_and_coaching(self):
-        self.st.fix_all()
+        helpers.prepare_sim_audio(self.st)
         self.assertTrue(self.st.start_meter())
         self.st.monitor.sim_focus = "mic2"
         time.sleep(4)
@@ -67,7 +69,7 @@ class StudioSimulationTests(unittest.TestCase):
         self.assertIn("Gain 2", c["mic2"]["message"])
 
     def test_permission_block_detected(self):
-        self.st.fix_all()
+        helpers.prepare_sim_audio(self.st)
         self.st.monitor.sim_faults.add("permission")
         self.st.start_meter()
         time.sleep(3.5)
@@ -76,7 +78,7 @@ class StudioSimulationTests(unittest.TestCase):
         self.st.monitor.sim_faults.clear()
 
     def test_pretest_full_run(self):
-        self.st.fix_all()
+        helpers.prepare_sim_audio(self.st)
         p = self.st.pretest.start()
         self.assertEqual(p["steps"][0]["id"], "checks")
         self.st.pretest.next()
@@ -102,6 +104,7 @@ class StudioSimulationTests(unittest.TestCase):
         audition.adopt_template(self.st, "local", os.path.join(helpers.FIXTURES, "podcast_template.sesx"))
         store.clear_learning()
         store.put("autofix", {"set_scarlett_48k": True})
+        store.put('auto_prepare', True)
         soon = datetime.datetime.now() + datetime.timedelta(minutes=20)
         slot = soon.replace(minute=0, second=0, microsecond=0)
         if slot < datetime.datetime.now():
@@ -115,16 +118,17 @@ class StudioSimulationTests(unittest.TestCase):
         self.st.state = {}
         done = learning.tick(self.st) if 0 <= pred["minutes_away"] <= learning.PREP_WINDOW_MIN else None
         if done is not None:
-            self.assertTrue(any("Scarlett set to 48 kHz" in d for d in done))
+            self.assertFalse(any("Scarlett set to 48 kHz" in d for d in done))
+            self.assertEqual(self.st.audio.devices()[0]['rate'], 44100)
             self.assertIsNotNone(self.st.state.get("session"))
 
     def test_autofix_suggested_after_repeats(self):
         store.clear_learning()
         for _ in range(2):
-            store.log("fix_applied", action="create_show_input", by="operator", mode="zoom")
+            store.log("fix_applied", action="prepare_session", by="operator", mode="zoom")
         sug = learning.autofix_suggestions(self.st)
-        self.assertEqual(sug[0]["action"], "create_show_input")
-        self.st.approve_autofix("create_show_input")
+        self.assertEqual(sug[0]["action"], "prepare_session")
+        self.st.approve_autofix("prepare_session")
         self.assertFalse(learning.autofix_suggestions(self.st))
         with self.assertRaises(ValueError):
             self.st.approve_autofix("record")  # never automatic

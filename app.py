@@ -19,8 +19,8 @@ def port_busy(port):
 
 def main():
     if port_busy(PORT):
-        print(f"Sawti is already running: http://127.0.0.1:{PORT}")
-        return 0
+        print(f"Port {PORT} is occupied; this process did not start. Verify the existing listener manually.")
+        return 1
     studio = Studio()
     studio.lifecycle.install_handlers()
     app = create_app(studio)

@@ -1,3 +1,9 @@
+# 3.0.1 QA improvements
+
+See [audit/qa/REPORT.md](audit/qa/REPORT.md) for evidence, limitations and remaining release gates. The original 3.0 claims below are retained as historical design notes; they are not independent validation.
+
+Safety changes include individually approved audio actions, non-audio bulk/learned fixes, coordinated OFF/capture lifecycle, browser microphone cleanup, owned-process identity checks, refusal of unverified AI services, and blocking real inline output pending qualification. Migration preserves 2.2 data; exports use unique folders; silence/readiness messages now reflect uncertainty. Arabic rule responses, input validation, regression tests, HTTP smoke and CI were added.
+
 # Sawti 3.0: changes from 2.2
 
 ## Every QA defect and its fix

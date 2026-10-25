@@ -171,7 +171,7 @@ def insights(studio):
 
 def tick(studio):
     """Called every minute while Sawti is ON: prepare a predicted show in advance."""
-    if not studio.settings("auto_prepare") or studio.live:
+    if not studio.lifecycle.on or not studio.settings("auto_prepare") or studio.live:
         return None
     pred = predict_next(studio)
     if not pred or not (0 <= pred["minutes_away"] <= PREP_WINDOW_MIN) or pred["confidence"] < 0.6:
@@ -181,7 +181,8 @@ def tick(studio):
         return None
     studio.state["auto_prepared"] = key
     if studio.mode != pred["mode"]:
-        studio.set_mode(pred["mode"])
+        studio.notify(f"A {pred['mode']} show is predicted. Choose its mode manually before preparation.")
+        return None
     done = studio.run_autofixes(reason="auto-prep")
     try:
         from . import audition
