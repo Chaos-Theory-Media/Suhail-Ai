@@ -1,8 +1,13 @@
 {
-  "name":"Local Podcast / 3 Microphones",
-  "meter_device_pattern":"Scarlett.*18i8|18i8.*Scarlett",
-  "required_input_channels":4,
-  "sources":[{"channel":1,"name":"Presenter / Mic 1"},{"channel":2,"name":"Guest / Mic 2"},{"channel":3,"name":"Guest / Mic 3"},{"channel":4,"name":"Talkback (NOT recorded)"}],
-  "expected":{"inputs":"Scarlett 1–3 programme; 4 private talkback","outputs_1_2":"Studio speakers (monitor knob)","outputs_3_4":"Quad headphone amplifier","audition":"3 mono tracks; input monitoring off","sample_rate":48000},
-  "notes":"A profile is a read-only expected-state description, not a Focusrite routing preset."
+  "name": "Podcast · 3 microphones",
+  "meter_device": "scarlett",
+  "sample_rate": 48000,
+  "sources": [
+    {"id": "mic1", "name": "Mic 1 · Host", "device": "scarlett", "channels": [1], "role": "programme", "gain_knob": 1},
+    {"id": "mic2", "name": "Mic 2 · Guest", "device": "scarlett", "channels": [2], "role": "programme", "gain_knob": 2},
+    {"id": "mic3", "name": "Mic 3 · Guest", "device": "scarlett", "channels": [3], "role": "programme", "gain_knob": 3},
+    {"id": "talkback", "name": "Talkback (never recorded)", "device": "scarlett", "channels": [4], "role": "talkback", "gain_knob": 4}
+  ],
+  "audition_tracks": ["Mic 1", "Mic 2", "Mic 3"],
+  "outputs": {"1-2": "Studio speakers", "3-4": "Headphone amplifier"}
 }

@@ -1,4 +1,6 @@
 Flask>=3.0,<4
 numpy>=1.26,<3
+scipy>=1.11,<2
 sounddevice>=0.5,<1
+soundfile>=0.12,<1
 psutil>=5.9,<8

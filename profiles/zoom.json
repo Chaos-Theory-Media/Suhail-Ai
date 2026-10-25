@@ -1,8 +1,15 @@
 {
-  "name":"Zoom Show / Scarlett + BlackHole",
-  "meter_device_pattern":"Aggregate|ZOOM_RECORD_INPUTS",
-  "required_input_channels":4,
-  "sources":[{"channel":1,"name":"Presenter Mic / assumed ch 1"},{"channel":2,"name":"Scarlett input 2 / verify"},{"channel":3,"name":"Scarlett input 3 / verify"},{"channel":4,"name":"Talkback / do not record"}],
-  "expected":{"inputs":"Aggregate: Scarlett inputs + BlackHole stereo, exact channels to verify","outputs_1_2":"Studio speakers","outputs_3_4":"Quad headset amplifier","audition":"Presenter mono + Zoom guests stereo, input monitoring off","sample_rate":48000},
-  "notes":"The guest channel numbers cannot be assumed. Identify actual Aggregate Device channel numbering, then edit this file and increase required_input_channels. BlackHole 2ch and 16ch devices are distinct."
+  "name": "Zoom Show · Scarlett + BlackHole",
+  "meter_device": "show_input",
+  "sample_rate": 48000,
+  "sources": [
+    {"id": "mic1", "name": "Mic 1 · Host", "device": "scarlett", "channels": [1], "role": "programme", "gain_knob": 1},
+    {"id": "mic2", "name": "Mic 2 · Studio guest", "device": "scarlett", "channels": [2], "role": "programme", "gain_knob": 2},
+    {"id": "mic3", "name": "Mic 3 · Studio guest", "device": "scarlett", "channels": [3], "role": "programme", "gain_knob": 3},
+    {"id": "talkback", "name": "Talkback (never recorded)", "device": "scarlett", "channels": [4], "role": "talkback", "gain_knob": 4},
+    {"id": "guests", "name": "Zoom guests (return)", "device": "blackhole", "channels": [1, 2], "role": "remote"}
+  ],
+  "audition_tracks": ["Mic 1", "Mic 2", "Mic 3", "Zoom guests"],
+  "outputs": {"1-2": "Studio speakers", "3-4": "Headphone amplifier"},
+  "notes": "Channel numbers are resolved automatically from the Sawti Show Input device: Scarlett inputs first, then BlackHole."
 }

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no" ?>
+<!DOCTYPE sesx>
+<sesx version="1.9">
+  <session appBuild="25.0" appVersion="25.0" audioChannelType="stereo" bitDepth="32" duration="0" sampleRate="48000">
+    <name>Podcast template.sesx</name>
+    <tracks>
+      <audioTrack id="10001" index="1" select="true" visible="true">
+        <trackParameters trackHeight="134"><name>Mic 1</name></trackParameters>
+        <trackAudioParameters audioChannelType="mono" monitoring="false" recordArmed="true">
+          <trackInput inputID="1" deviceChannel="0"/>
+          <trackOutput outputID="10000" type="trackID"/>
+        </trackAudioParameters>
+      </audioTrack>
+      <audioTrack id="10002" index="2" visible="true">
+        <trackParameters trackHeight="134"><name>Mic 2</name></trackParameters>
+        <trackAudioParameters audioChannelType="mono" monitoring="false" recordArmed="true">
+          <trackInput inputID="2" deviceChannel="1"/>
+        </trackAudioParameters>
+      </audioTrack>
+      <audioTrack id="10003" index="3" visible="true">
+        <trackParameters trackHeight="134"><name>Mic 3</name></trackParameters>
+        <trackAudioParameters audioChannelType="mono" monitoring="false" recordArmed="true">
+          <trackInput inputID="3" deviceChannel="2"/>
+        </trackAudioParameters>
+      </audioTrack>
+      <masterTrack id="10000" index="4"><trackParameters><name>Mix</name></trackParameters></masterTrack>
+    </tracks>
+  </session>
+</sesx>

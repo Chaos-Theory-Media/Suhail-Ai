@@ -1,108 +1,86 @@
-# Sawti 2.0 | Local Studio Controller
+# Sawti 3.0 (صوتي): studio agents for IMI podcasts
 
-Local developer prototype for Mac Studio (M2 Max / Ultra), Scarlett 18i8, Focusrite Control 2, Adobe Audition, Zoom and BlackHole.
+Sawti prepares the studio, runs the sound check, opens the right Audition session, watches levels during the
+show and masters the episode. The person running the show presses a few buttons. Sawti handles the technical
+setup.
 
-## What works
+Built for: Mac Studio (Apple silicon, macOS 14+), Focusrite Scarlett 18i8, Adobe Audition, Zoom, BlackHole.
 
-- Distinct Podcast and Zoom Show tabs and diagnostic profiles.
-- CoreAudio device discovery, read-only live input metering subject to macOS input permission and device channel configuration.
-- Local specialist health agents and supervised text conversation. Plain-language diagnostics work without any LLM.
-- Optional Ollama **local-only** language model for open-ended questions.
-- Optional faster-whisper **offline** speech-to-text from a press-to-talk browser recording.
-- Opt-in presenter voice enrolment and tentative similarity matching using Resemblyzer. Consent and deletion controls.
-- Local recording folder and file-naming analysis from the existing v1.3 learning service.
-- Existing photo-style microphone troubleshooting visual.
+---
 
-## What does NOT yet work
+## First-time setup (about 20 minutes, once per Mac)
 
-- This prototype cannot read physical Scarlett gain-knob positions or 48V states. It can warn on silence during a test, not certify the cause.
-- Speaker recognition is *not* authentication. Replay or similar voices can fool it. A local pilot threshold of 0.79 is provisional and MUST be calibrated on your presenters and studio microphone; uncertain identification stays unnamed. No voice-driven destructive actions.
-- The UI does not automatically control Audition, Zoom, Focusrite routing, or recording transport. There is no automatic gain correction.
-- All detected meters are **peak/RMS**, not calibrated PPM. BlackHole channels require correct Aggregate channel order before meaningful live metering.
-- Voice relies on local optional Python dependencies and model downloads. Browser audio MIME support must be tested on your Mac; speech transcription may require ffmpeg for some files.
-- "Agentic" means locally orchestrated specialist diagnostic components plus an optional language model, **not** fully autonomous studio operation.
+1. Unzip the folder and move **Sawti_3_0_Mac** into **Documents**. Keep it there. If you move it later, run the
+   installer again.
+2. Double-click **INSTALL_SAWTI.command**.
+   macOS will block it the first time because it comes from the internet. Then:
+   **System Settings › Privacy & Security** › scroll down › **Open Anyway** next to INSTALL_SAWTI › enter
+   the Mac password. You only do this once.
+3. Answer the two questions (local AI: yes; voice commands: optional). Wait until you see **✅ Sawti is installed**.
+4. If the installer says Apple's *Command Line Tools* are needed, click **Install** in the Apple window,
+   wait for it to finish, and run INSTALL_SAWTI.command again. Sawti needs these tools to create audio devices.
+5. The first time Sawti meters audio, macOS asks for **microphone access**. Click **Allow**.
+   The first time Sawti presses Record, macOS asks for **Accessibility**. Allow **Sawti** (or Terminal).
 
-## Install
+### Make the Audition template (once per show type)
+In Audition, create a **48 kHz multitrack session**:
+* **Podcast:** three **mono** tracks named *Mic 1, Mic 2, Mic 3*, inputs Scarlett 1, 2, 3, all armed (R).
+* **Zoom Show:** the same, plus a **stereo** track *Zoom guests* whose input is the last two channels of
+  **Sawti Show Input**. Create that device first: switch Sawti ON, choose Zoom Show, press
+  *Fix everything I can*.
 
-1. Extract the ZIP to a persistent location, such as your Documents folder.
-2. Install Python 3.11 or 3.12 and macOS Command Line Tools if required.
-3. In Terminal inside the `Sawti_2_0_Mac` folder:
+Save the session. In Sawti, open **Prepare › Save the show template** and drag the .sesx file into the box.
+Press **Use as show template**. From then on, Sawti creates a dated copy of this template for every show.
 
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install -r requirements.txt
-python app.py
-```
+---
 
-4. Open `http://127.0.0.1:8765`. Allow microphone access for the browser only when using voice commands or enrolment.
-5. Stop the existing Sawti v1.x server first, because both use port 8765.
+## Every show
 
-### Optional language model
+Open **Sawti** from the Desktop and press **Switch Sawti ON**. Choose **Podcast** or **Zoom Show**. Then follow
+the tabs:
 
-Install Ollama from https://ollama.com and download a model **once**, for example:
+| Tab | What you do | What Sawti does |
+|---|---|---|
+| **1 · Prepare** | Press **Fix everything I can**. Tick the blue items after checking them. Press **Open in Audition**. | Sets 48 kHz, creates or repairs the Zoom audio devices, keeps the Mac awake, prepares today's session with the right name and folder, and opens it in Audition. |
+| **2 · Pre-test** | Press **Start pre-test** and follow the instructions (each person talks, then talkback, the Zoom guest, then a 10-second test recording). | Checks that every voice arrives on the right input at the right level and tells you which knob to turn and by how much. Catches swapped cables, talkback leaking into recordings, silent mics and macOS permission blocks. |
+| **3 · Live** | Press **Go live**, then **● Record**. | Watches every mic and warns you if one gets too quiet, too loud or clips. It refuses any device change while you are live. |
+| **4 · After the show** | Press **End show**, then **Mix & master selected tracks**. | Levels each speaker, closes mics that only pick up someone else, mixes, and masters to **−16 LUFS / −1 dBTP**. The originals are never changed. |
 
-```bash
-ollama pull qwen3:4b
-```
+**Ask Sawti** (right side) understands English and Arabic: *"check the studio"*, *"how are the levels?"*,
+*"صوتي، هل برنامج أوديشن يعمل؟"*. Answers come with buttons, so you can act straight away.
 
-Sawti connects only to `127.0.0.1:11434`, never to cloud APIs. Do not enable Ollama cloud models for this studio. The model may require internet access for the initial download.
+**To close Sawti:** press **Quit** on the page. Closing the browser tab or a Terminal window does not leave
+anything running in the background.
 
-### Optional speech-to-text and presenter recognition
+---
 
-```bash
-source .venv/bin/activate
-python -m pip install -r requirements-voice.txt
-brew install ffmpeg
-```
+## How Sawti learns
+* It learns **when shows usually happen**. About 45 minutes before a predicted show it runs the checks, applies
+  approved fixes and prepares the session, then tells you what it did.
+* It learns **how you name sessions** (for example `IMI_Talks_2026-10-25`) and where you save them.
+* When you apply the same fix **twice**, it offers to do that fix automatically from then on. You can switch
+  this off again in **Learning**.
+* It remembers **gain habits**, for example *"Mic 2 usually needs about 6 dB more"*, and tells you before the
+  guests arrive.
+* Sawti never records, deletes or changes routing on its own while a show is live. Everything it learns stays
+  on this Mac. To erase it, use **Learning › Forget everything learned**.
 
-Local faster-whisper downloads its speech model on first use; for offline-only studio operation, preload the model while connected to an approved network. `SAWTI_WHISPER=small` (default). Voice recognition loads a local embedding model on first use. After models are cached, disconnect the network and test voice features end-to-end before relying on offline operation.
+## Training without the studio
+**SIMULATE_SAWTI.command** opens a simulated studio on a separate page (port 8766). The simulation has a quiet
+mic, a hot mic and devices at the wrong sample rate, so new team members can practise. It keeps its own data,
+so practice runs don't affect what Sawti learns about real shows.
 
-**Security and privacy:** Presenter voice biometrics are personal data. Enrol only with informed permission, define local retention and deletion procedures, and obtain applicable legal/privacy approval. Embeddings are stored in `~/Library/Application Support/Sawti/sawti.sqlite3` and are not encrypted by the prototype; use FileVault and limit macOS account access. A production system should encrypt these records separately, provide clear consent records, and validate protection against replay attacks.
+## What Sawti cannot do (hardware and vendor limits)
+* **The gain knobs on the Scarlett 18i8 are analogue**, so no software can turn them. Sawti tells you which
+  knob to turn and by how many dB. It confirms the result in the sound check. The optional *inline leveler*
+  (Settings) can ride levels in software, but it is **off by default**. Test it outside live shows first.
+* **Focusrite Control 2 has no public interface for other apps.** Routing is stored in the Scarlett, so save a
+  preset per show in Focusrite Control 2. Sawti's pre-test proves the result (for example, that talkback is not
+  on any recorded mic).
+* **Audition has no automation interface on macOS.** Sawti uses your template files and presses Record or Stop
+  with keystrokes after you confirm.
+* **Zoom does not reveal which audio devices it is using.** Sawti shows the exact settings to choose and asks
+  you to confirm once per day.
+* Sawti is an in-house tool and is not notarised by Apple, so step 2 of the setup is needed.
 
-## Presenter prompt examples
-
-- Sawti, check the studio before recording.
-- Sawti, why is microphone one silent?
-- Sawti, check all three microphones and talkback.
-- Sawti, is Audition running?
-- Sawti, is BlackHole available?
-- Sawti, help me test Zoom mix-minus.
-- Sawti, tell me what to check before recording.
-- Sawti, where do we usually save recordings?
-- Sawti, suggest a filename for today's podcast.
-- Sawti, how can I check if phantom power is needed?
-- Sawti, check the remote guest return level.
-- Sawti, what should we do if a microphone clips?
-- صوتي، افحص الميكروفونات.
-- صوتي، هل برنامج أوديشن يعمل؟
-- صوتي، افحص إعدادات زوم.
-
-The sample prompts are conversation starters, not a guarantee that the corresponding hardware operation is implemented.
-
-## Operational precautions
-
-- Use a short mic sound check with an operator before every session.
-- Do not assume mic silence means the physical gain knob is at zero.
-- Do not restart audio hardware or change Aggregate routing during an active recording.
-- Preserve Focusrite Control 2 presets and documented physical wiring before future automation upgrades.
-- Use manual confirmation for talkback isolation and Zoom mix-minus.
-- Speaker output 1-2 and line outputs 3-4 remain unchanged.
-
-## Tests
-
-```bash
-python -m unittest discover -s tests -v
-```
-
-## Sawti 2.1 safe ON/OFF mode
-- Application starts in **OFF** mode. Open localhost:8765 and click SWITCH SAWTI ON to enable diagnostic endpoints and start a **Sawti-owned** Ollama process on 127.0.0.1:11439 if the Ollama executable is installed.
-- Qwen model downloads and Python package installation are **not automatic**. Install the model first with `ollama pull qwen3:4b` (Ollama's standard service); Sawti-owned service can then access the same local model files.
-- ON never opens microphone capture automatically. Click Start metering when safe to test; browser mic use is also initiated explicitly.
-- OFF stops the Sawti meter stream and the **Sawti-owned** Ollama process; it does not touch external Ollama sessions, Focusrite Control, BlackHole, Adobe Audition, or Zoom.
-- The lightweight local Sawti control webpage/server remains on so you can switch ON again. To close even the control webpage/backend, press Control+C in the Terminal running Sawti. Closing the browser alone does not stop the backend.
-- Do not enable Sawti during live production until verified on your Mac Studio. Do not change audio routing during an active recording.
-
-
-## Sawti 2.2 assisted AI installation
-Run `INSTALL_SAWTI.command` first. On explicit confirmation it downloads official Ollama macOS application into `~/Library/Application Support/Sawti/runtime/`, creates a local Python environment, and downloads `qwen3:4b` into `~/Library/Application Support/Sawti/models/`. No existing `/Applications/Ollama.app` is overwritten. `START_SAWTI.command` launches Sawti; ON starts a dedicated, Sawti-owned Ollama service using those model files, OFF stops that service. Initial downloads require network access; no model weights are bundled in ZIP. Optional voice dependencies are not part of assisted setup. Apple Silicon and Python 3.11/3.12 required. Safety: test while studio idle, do not use on-air until validated.
+Technical details for IT: **TECHNICAL.md**. What changed since 2.2: **CHANGES.md**.

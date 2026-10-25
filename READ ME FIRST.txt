@@ -1,0 +1,12 @@
+SAWTI 3.0 — studio agents for IMI podcasts
+
+1. Move this folder into Documents and keep it there.
+2. Double-click INSTALL_SAWTI.command.
+   macOS blocks it the first time: open System Settings > Privacy & Security,
+   scroll down, click "Open Anyway" next to INSTALL_SAWTI, and enter the Mac password.
+3. When the installer finishes, open "Sawti" from the Desktop.
+4. Switch Sawti ON and follow the tabs: 1 Prepare > 2 Pre-test > 3 Live > 4 After the show.
+5. To close Sawti, press Quit on the Sawti page.
+
+To practise without the studio: SIMULATE_SAWTI.command
+The full guide is in README.md. Notes for IT are in TECHNICAL.md.
