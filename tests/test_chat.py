@@ -20,6 +20,12 @@ CASES = {
     'How do I stop recording in Zoom?': 'stop_guide',
     'How do I stop clipping while recording?': 'clip',
     'How are the Zoom guest levels?': 'guest_level',
+    'Has recording started?': 'record_status',
+    'Is Audition recording?': 'record_status',
+    'Have you started recording?': 'record_status',
+    'Are you recording?': 'record_status',
+    'Is the audio good?': 'audio_quality',
+    'هل الصوت جيد؟': 'audio_quality',
     "Sawti, check the studio before recording": "ready",
     "Check the studio before recording": "ready",
     "Sawti, why is microphone one silent?": "mic_silent",
@@ -54,6 +60,30 @@ CASES = {
 
 
 class ChatRoutingTests(unittest.TestCase):
+    def test_recording_question_never_infers_success_from_live_marker(self):
+        from unittest.mock import Mock, patch
+        from sawti.agents.chat import answer
+        studio = Mock(live=True, mode='local')
+        with patch('sawti.agents.chat.llm_answer') as ai:
+            result = answer(studio, 'Has recording started?')
+        self.assertIn('can’t confirm', result['reply'])
+        self.assertEqual(result['actions'], [])
+        ai.assert_not_called()
+        studio.apply.assert_not_called()
+
+    def test_audio_quality_requires_fresh_complete_programme_levels(self):
+        from unittest.mock import Mock, patch
+        from sawti.agents.chat import answer
+        studio = Mock(mode='local')
+        studio.profile.return_value = {'sources': [{'id': 'mic1', 'role': 'programme'}, {'id': 'talkback', 'role': 'talkback'}]}
+        studio.monitor.snapshot.return_value = {'running': True, 'stale': False}
+        with patch('sawti.agents.levels.coach', return_value=[{'id': 'mic1', 'status': 'good', 'message': 'Mic 1 good'}]):
+            self.assertIn('look good', answer(studio, 'Is the audio good?')['reply'])
+            studio.monitor.snapshot.return_value = {'running': True, 'stale': True}
+            self.assertIn('fresh', answer(studio, 'Is the audio good?')['reply'])
+        studio.monitor.snapshot.return_value = {'running': True, 'stale': False}
+        with patch('sawti.agents.levels.coach', return_value=[]):
+            self.assertIn('fresh', answer(studio, 'Is the audio good?')['reply'])
     def test_identity_is_one_direct_sentence_without_hardware_or_ai_queries(self):
         from unittest.mock import Mock, patch
         from sawti.agents.chat import answer

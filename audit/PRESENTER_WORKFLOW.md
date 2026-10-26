@@ -16,7 +16,7 @@ The operator reports working live PPM readings and gain guidance, and successful
 | Record / Stop | Approved keyboard shortcuts; delayed check for WAV file growth | Cannot observe transport, active session, correct input mapping or per-track recording; shortcuts alone are insufficient for autonomous operation |
 | Mic tests | Meter measurements and an operator-stepped pre-test | Requires reliable automatic progression, fresh per-channel evidence and named failure handling |
 | Voice commands | Optional local transcription of browser button recordings | No dedicated Scarlett channel 1 wake listener; browser default microphone need not be Mic 1 |
-| Responses / countdown | Text replies | No spoken dialogue, timed countdown or cancellation protocol |
+| Responses / countdown | Text replies; 3.1.0 adds local private-headset speech after per-session operator commissioning, with an animated character | No autonomous timed countdown; actual Mac speech/isolation qualification and the hands-free dialogue controller are still needed |
 | Voice identity | Optional voluntary embeddings; explicitly not authentication | Recognition must never grant unrestricted control or substitute for recording authorisation |
 
 The current chat safety correction recognises combined test/countdown/record requests and offers pre-test only. It does not implement or claim the requested sequence.

@@ -19,23 +19,26 @@ _lock = threading.RLock()
 _errors = {}
 KINDS = set('template_saved session_prepared session_opened chat_intent pretest_started pretest_done '
             'gain_advice mastered microphones_selected manual_confirmed fix_applied autofix_run '
-            'mode_selected show_started show_ended auto_prepared presenter_added sawti_started operation_failed'.split())
+            'mode_selected show_started show_ended auto_prepared presenter_added sawti_started operation_failed '
+            'presenter_voice_configured presenter_voice_enabled presenter_voice_muted presenter_voice_result'.split())
 ACTIONS = set('keep_awake open_mic_privacy open_accessibility open_focusrite open_studio_apps open_zoom '
               'open_audio_midi set_scarlett_48k set_blackhole_48k set_show_input_48k create_show_input '
               'repair_show_input create_zoom_speaker open_audition prepare_session open_session record stop'.split())
 ENUMS = {
     'mode': {'local', 'zoom'}, 'action': ACTIONS, 'by': {'operator', 'auto'},
     'source': {'operator', 'sawti', 'mic1', 'mic2', 'mic3', 'talkback', 'guests'},
-    'reason': {'power-on', 'auto-prep'},
-    'intent': set('identity zoom_guide recording_guide stop_guide guided_recording record_start record_stop pretest clip talkback mixminus guest_level blackhole '
+    'reason': {'power-on', 'auto-prep', 'completed', 'cancelled', 'failed'},
+    'intent': set('record_status audio_quality identity zoom_guide recording_guide stop_guide guided_recording record_start record_stop pretest clip talkback mixminus guest_level blackhole '
                   'zoom audition session filename save_where master mic_silent levels ready fix awake help'.split()),
     'error_type': {'ValueError', 'RuntimeError', 'OSError', 'ApiError'},
     'operation': {'/api/action', '/api/action/review', '/api/podcast/microphones', '/api/session/prepare',
                   '/api/audition/template', '/api/audition/inspect', '/api/meter/start', '/api/pretest/<step>',
                   '/api/voice', '/api/chat', '/api/mode', '/api/post/master', '/api/post/automix', '/api/post/qc'},
 }
+ENUMS['operation'].update('/api/presenter-speech/configure /api/presenter-speech/test '
+                          '/api/presenter-speech/enable /api/presenter-speech/speak /api/presenter-speech/mute'.split())
 NUMBERS = {'delta', 'tracks', 'actions', 'count', 'minutes', 'lufs', 'error_status'}
-BOOLEANS = {'ok', 'within', 'live', 'simulated'}
+BOOLEANS = {'ok', 'within', 'live', 'simulated', 'test'}
 STEPS = {'checks', 'mic:mic1', 'mic:mic2', 'mic:mic3', 'talkback', 'remote', 'record'}
 
 

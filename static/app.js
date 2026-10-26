@@ -35,7 +35,8 @@ async function api(path, opts = {}) {
 
 const S = { on: false, mode: 'local', live: false, tab: 'prepare', simulated: false, voice: {}, seenNotices: 0,
   pretestActive: false, jobs: {}, settings: null, profiles: null, generation: 0,
-  micContext: null, micPlanId: null };
+  micContext: null, micPlanId: null, presenterSpeech: {enabled: false, phase: 'muted'},
+  speechDevices: [], speechContext: null, speechRequestPending: false, speechRequestEpoch: 0 };
 
 function toast(message, level = 'info', ms = 6000) {
   const t = h('div', { class: `toast ${level}`, text: message });
@@ -106,6 +107,13 @@ function renderPower(st) {
   $('#podcastMicSetup').hidden = st.mode !== 'local';
   renderMicrophones(st.on && st.mode === 'local' ? st.microphone_plan : null,
     `${st.on}:${st.mode}:${st.power_epoch || 0}`);
+  if (S.speechContext !== S.micContext) {
+    S.speechContext = S.micContext;
+    S.speechRequestPending = false; S.speechRequestEpoch++;
+    clearSpeechAttestations();
+    $('#speechMapping').checked = false;
+  }
+  renderPresenterSpeech(st.on ? st.presenter_speech : null);
   for (const n of st.notices || []) if (n.id > S.seenNotices) { S.seenNotices = n.id; toast(n.message, n.level, 9000); }
 }
 $('#powerBtn').addEventListener('click', async () => {
@@ -472,6 +480,100 @@ $('#personAdd').addEventListener('click', async () => {
 });
 
 // ------------------------------------------------------------------ chat & voice
+const SAWTI_WELCOME = 'Hello, I’m Sawti, your studio assistant. I can help you prepare and check your studio.';
+let speechPollTimer = null;
+function clearSpeechAttestations() {
+  for (const id of ['speechHeadphonesOnly', 'speechNotRecorded', 'speechNoLoopback', 'speechAcoustic'])
+    $('#' + id).checked = false;
+}
+function renderPresenterSpeech(state) {
+  S.presenterSpeech = state || {enabled: false, phase: 'muted'};
+  const voice = S.presenterSpeech;
+  $('#sawtiCharacter').classList.toggle('speaking', voice.phase === 'speaking' && S.on);
+  $('#mutePresenterSpeech').disabled = !S.on;
+  $('#presenterSpeechState').textContent = voice.phase === 'unknown' ? 'Voice state unavailable · wait for reconnection or switch Sawti OFF' :
+    voice.error ? `Voice muted: ${voice.error}` :
+    voice.phase === 'speaking' ? 'Speaking to the configured private headset pair' :
+    voice.phase === 'preparing' ? 'Preparing local speech…' :
+    voice.phase === 'test_complete' ? 'Test played · listen back before enabling' :
+    voice.enabled ? 'Private voice enabled · isolation checked by operator' : 'Text welcome · private voice is off';
+  if (voice.caption) $('#sawtiCaption').textContent = voice.caption;
+  clearTimeout(speechPollTimer); speechPollTimer = null;
+  if (S.on && ['preparing', 'speaking', 'unknown'].includes(voice.phase)) {
+    const generation = S.generation;
+    speechPollTimer = setTimeout(async () => {
+      try {
+        const r = await api('/api/presenter-speech/state');
+        if (S.on && generation === S.generation) renderPresenterSpeech(r);
+      } catch (_) { if (generation === S.generation && S.on) renderPresenterSpeech({enabled: false, phase: 'unknown'}); }
+    }, 150);
+  }
+}
+async function sayToPresenter(text) {
+  if (!S.on || S.simulated || !S.presenterSpeech.enabled || recorder || voicePending || S.speechRequestPending) return;
+  if (text.length > 700) text = (text.match(/[؀-ۿ]/g) || []).length > (text.match(/[a-zA-Z]/g) || []).length ?
+    'وضعت التعليمات الكاملة على الشاشة لتراجعها.' : 'I’ve put the full instructions on screen for you.';
+  const generation = S.generation;
+  const requestEpoch = ++S.speechRequestEpoch;
+  S.speechRequestPending = true;
+  try {
+    const r = await guard(() => api('/api/presenter-speech/speak', {body: {text}}));
+    if (S.on && generation === S.generation && requestEpoch === S.speechRequestEpoch)
+      renderPresenterSpeech(r ? r.state : {enabled: false, phase: 'unknown'});
+  } finally {
+    if (requestEpoch === S.speechRequestEpoch) S.speechRequestPending = false;
+  }
+}
+function populateSpeechPairs() {
+  const device = S.speechDevices.find(d => d.uid === $('#speechDevice').value);
+  const options = [h('option', {value: '', text: 'Choose verified headphone-only USB pair'})];
+  if (device && device.outputs >= 4)
+    options.push(h('option', {value: '3,4', text: 'USB Playback 3–4 → presenter outputs 3–4'}));
+  $('#speechPair').replaceChildren(...options);
+}
+async function refreshSpeechSetup() {
+  const r = await guard(() => api('/api/presenter-speech'));
+  if (!r) return;
+  S.speechDevices = r.devices;
+  if (!r.devices.some(d => d.uid))
+    toast('No stable Scarlett device identity is available. Use Show device diagnostics in Prepare; private voice stays off.', 'warn');
+  $('#speechDevice').replaceChildren(h('option', {value: '', text: 'Choose exact Scarlett device'}),
+    ...r.devices.filter(d => d.uid).map(d => h('option', {value: d.uid, text: d.name})));
+  populateSpeechPairs();
+  for (const [id, language, label] of [['speechEnglish', 'en_', 'Choose installed English voice'],
+    ['speechArabic', 'ar_', 'Text only in Arabic']])
+    $('#' + id).replaceChildren(h('option', {value: '', text: label}),
+      ...r.voices.filter(v => v.language.startsWith(language)).map(v => h('option', {value: v.name, text: `${v.name} · ${v.language}`})));
+  renderPresenterSpeech(r.state);
+}
+$('#refreshSpeechSetup').addEventListener('click', refreshSpeechSetup);
+$('#speechDevice').addEventListener('change', populateSpeechPairs);
+$('#configureSpeech').addEventListener('click', async () => {
+  if (!(await ask('All production recording must be stopped. Save this private voice plan without changing Focusrite routing?'))) return;
+  const voices = {en: $('#speechEnglish').value};
+  if ($('#speechArabic').value) voices.ar = $('#speechArabic').value;
+  const r = await guard(() => api('/api/presenter-speech/configure', {body: {
+    uid: $('#speechDevice').value, pair: $('#speechPair').value.split(',').map(Number), voice: voices,
+    studio_idle: true, headphone_mapping_confirmed: $('#speechMapping').checked}}));
+  if (r) { clearSpeechAttestations(); renderPresenterSpeech(r); }
+});
+$('#testPresenterSpeech').addEventListener('click', async () => {
+  if (!(await ask('Play the low-level Sawti test phrase on the configured pair? Confirm production recording is idle, headphones are mapped, and you have prepared isolated test recordings to check leakage.'))) return;
+  clearSpeechAttestations();
+  const r = await guard(() => api('/api/presenter-speech/test', {body: {studio_idle: true, operator_confirmed: true}}));
+  if (r) renderPresenterSpeech(r.state);
+});
+$('#enablePresenterSpeech').addEventListener('click', async () => {
+  if (!(await ask('Enable spoken chat replies on the tested pair for this session? Confirm all production recording is idle and you have listened back to the isolation tests.'))) return;
+  const r = await guard(() => api('/api/presenter-speech/enable', {body: {studio_idle: true, attestations: {
+    headphones_only: $('#speechHeadphonesOnly').checked, no_recorded_speech: $('#speechNotRecorded').checked,
+    no_loopback: $('#speechNoLoopback').checked, acoustic_checked: $('#speechAcoustic').checked}}}));
+  if (r) { renderPresenterSpeech(r); sayToPresenter(SAWTI_WELCOME); }
+});
+$('#mutePresenterSpeech').addEventListener('click', async () => {
+  const r = await guard(() => api('/api/presenter-speech/mute', {body: {}}));
+  if (r) { clearSpeechAttestations(); renderPresenterSpeech(r); }
+});
 const PROMPTS = {
   local: ['How do I use Sawti?', 'Check the studio before recording', 'Run the pre-test', 'How are the mic levels?', 'Is Audition running?',
     'Prepare and open today\'s session', 'Suggest a filename', 'What if a microphone clips?', 'صوتي، افحص الميكروفونات'],
@@ -490,7 +592,7 @@ function addMsg(who, text, actions) {
 }
 async function send(text) {
   addMsg('You', text);
-  try { const r = await api('/api/chat', { body: { message: text } }); addMsg(r.source === 'ai' ? 'Sawti (AI)' : 'Sawti', r.reply, r.actions); }
+  try { const r = await api('/api/chat', { body: { message: text } }); addMsg(r.source === 'ai' ? 'Sawti (AI)' : 'Sawti', r.reply, r.actions); sayToPresenter(r.reply); }
   catch (e) { addMsg('Sawti', e.message); }
 }
 $('#chatForm').addEventListener('submit', (e) => { e.preventDefault(); const t = $('#chatInput').value.trim(); if (!t) return; $('#chatInput').value = ''; send(t); });
@@ -505,10 +607,19 @@ function stopVoice() {
   voiceStream = null; recorder = null;
   $('#voiceState').textContent = ''; $('#voiceBtn').textContent = '🎙 Tap to speak';
 }
-window.addEventListener('pagehide', stopVoice);
+window.addEventListener('pagehide', () => {
+  stopVoice();
+  if (S.on && (S.presenterSpeech.enabled || ['preparing', 'speaking'].includes(S.presenterSpeech.phase))) {
+    // Best effort only. OFF/Quit is the authoritative server-side stop.
+    fetch('/api/presenter-speech/mute', {method: 'POST', headers: {'X-Sawti': '1'}, keepalive: true}).catch(() => {});
+  }
+  renderPresenterSpeech(null);
+});
 async function recordVoice(url, enrol) {
   if (S.simulated) return toast('Simulation does not use real microphones.', 'warn');
   if (!S.on) return toast('Switch Sawti ON before using the microphone.', 'warn');
+  if (S.speechRequestPending || ['preparing', 'speaking', 'unknown'].includes(S.presenterSpeech.phase))
+    return toast('Wait until Sawti finishes speaking, or mute her voice before using the microphone.', 'warn');
   if (recorder && recorder.state === 'recording') { recorder.stop(); return; }
   if (voicePending) return;
   const generation = ++voiceGeneration;
@@ -544,7 +655,7 @@ async function recordVoice(url, enrol) {
       const r = await api(url, { form });
       if (!S.on || generation !== voiceGeneration) return;
       if (enrol) { toast('Voice saved.', 'ok'); loadPeople(); }
-      else { addMsg('You' + (r.speaker && r.speaker.name ? ` (${r.speaker.name}?)` : ''), r.text || '(nothing heard)'); addMsg('Sawti', r.reply, r.actions); }
+      else { addMsg('You' + (r.speaker && r.speaker.name ? ` (${r.speaker.name}?)` : ''), r.text || '(nothing heard)'); addMsg('Sawti', r.reply, r.actions); sayToPresenter(r.reply); }
     } catch (e) { toast(e.message, 'fail'); }
     $('#voiceState').textContent = '';
   };

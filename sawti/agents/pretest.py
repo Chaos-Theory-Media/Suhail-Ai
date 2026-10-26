@@ -27,6 +27,9 @@ class Pretest:
     def start(self):
         st = self.studio
         st.require_on()
+        speech = st.presenter_speech.snapshot()
+        if speech['phase'] in ('preparing', 'speaking') and not speech['enabled']:
+            raise RuntimeError('Finish or mute the private headset test before the sound check.')
         from ..commissioning import require_plan
         require_plan(st)
         if st.live:

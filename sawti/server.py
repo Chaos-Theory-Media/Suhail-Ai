@@ -10,7 +10,7 @@ from pathlib import Path
 
 from flask import Flask, g, jsonify, request, send_file, send_from_directory
 
-from . import VERSION, learning_report, paths, readiness, store, voice
+from . import VERSION, learning_report, paths, presenter_speech, readiness, store, voice
 from .agents import audition, chat, learning, levels, post
 
 PORT = int(os.environ.get("SAWTI_PORT", "8765"))
@@ -59,7 +59,8 @@ def create_app(studio):
                 return jsonify(error="Sawti power changed while this request was waiting."), 409
             # Read-only inference/conversion may take seconds. Do not delay OFF
             # behind it; discard the response if its admission epoch changes.
-            if request.path in ('/api/chat', '/api/voice', '/api/audition/inspect'):
+            if request.path in ('/api/chat', '/api/voice', '/api/audition/inspect',
+                                '/api/presenter-speech/speak', '/api/presenter-speech/test'):
                 g.admitted_epoch = epoch
                 g.studio_locked = False
                 studio.lock.release()
@@ -216,6 +217,51 @@ def create_app(studio):
         return jsonify(run(fns[step]))
 
     # ------------------------------------------------------------ Audition
+    @app.get('/api/presenter-speech')
+    def presenter_speech_info():
+        devices = [d for d in studio.devices(fresh=True) if presenter_speech.is_scarlett(d)]
+        return jsonify(state=studio.presenter_speech.snapshot(), devices=devices,
+                       voices=[] if studio.audio.simulated else run(presenter_speech.installed_voices))
+
+    @app.get('/api/presenter-speech/state')
+    def presenter_speech_state():
+        return jsonify(studio.presenter_speech.snapshot())
+
+    @app.post('/api/presenter-speech/configure')
+    def presenter_speech_configure():
+        d = body()
+        result = run(lambda: studio.presenter_speech.configure(d.get('uid'), d.get('pair'), d.get('voice'),
+                     idle=d.get('studio_idle'), mapped=d.get('headphone_mapping_confirmed')))
+        studio.approvals.invalidate()
+        studio.learn('presenter_voice_configured', mode=studio.mode)
+        return jsonify(result)
+
+    @app.post('/api/presenter-speech/test')
+    def presenter_speech_test():
+        d = body()
+        started = run(lambda: studio.presenter_speech.start('', test=True, idle=d.get('studio_idle'),
+                      confirmed=d.get('operator_confirmed'), epoch=g.admitted_epoch))
+        return jsonify(started=started, state=studio.presenter_speech.snapshot())
+
+    @app.post('/api/presenter-speech/enable')
+    def presenter_speech_enable():
+        d = body()
+        result = run(lambda: studio.presenter_speech.authorise(d.get('attestations'), idle=d.get('studio_idle')))
+        studio.approvals.invalidate()
+        studio.learn('presenter_voice_enabled', mode=studio.mode)
+        return jsonify(result)
+
+    @app.post('/api/presenter-speech/speak')
+    def presenter_speech_speak():
+        started = run(lambda: studio.presenter_speech.start(body().get('text'), epoch=g.admitted_epoch))
+        return jsonify(started=started, state=studio.presenter_speech.snapshot())
+
+    @app.post('/api/presenter-speech/mute')
+    def presenter_speech_mute():
+        studio.presenter_speech.stop()
+        studio.learn('presenter_voice_muted', mode=studio.mode)
+        return jsonify(studio.presenter_speech.snapshot())
+
     @app.post('/api/podcast/microphones')
     def podcast_microphones():
         d = body()

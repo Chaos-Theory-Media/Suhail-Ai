@@ -11,6 +11,11 @@ class Element {
   constructor() {
     this.style = {}; this.dataset = {}; this.value = ''; this.listeners = {};
     this.classList = {toggle() {}};
+    const classes = new Set();
+    this.classList = {toggle(name, on) {
+      if (on === undefined) on = !classes.has(name);
+      if (on) classes.add(name); else classes.delete(name);
+    }, contains: name => classes.has(name)};
   }
   addEventListener(name, fn) { this.listeners[name] = fn; }
   setAttribute(name, value) {this[name] = value;}
@@ -23,6 +28,7 @@ class Element {
 async function harness() {
   const nodes = new Map();
   let captures = 0, stops = 0, uploads = 0;
+  const requests = [];
   const track = {stop: () => {stops++;}};
   const stream = {getTracks: () => [track]};
   const ctx = vm.createContext({
@@ -37,6 +43,7 @@ async function harness() {
     window: new Element(),
     setInterval() {}, setTimeout() {return 1;}, clearTimeout() {},
     fetch: async (url, opts) => {
+      requests.push({url, opts});
       if (url.includes('/voice')) uploads++;
       return {ok: true, json: async () => ({on: false, mode: 'local', notices: [], voice: {}})};
     },
@@ -51,7 +58,7 @@ async function harness() {
   });
   vm.runInContext(source, ctx);
   await new Promise(resolve => setImmediate(resolve));
-  return {ctx, stream, nodes, captures: () => captures, stops: () => stops, uploads: () => uploads};
+  return {ctx, stream, nodes, requests, captures: () => captures, stops: () => stops, uploads: () => uploads};
 }
 
 test('OFF never asks for microphone access', async () => {
@@ -208,4 +215,67 @@ test('OFF during the confirmation dialog prevents a microphone submission', asyn
   h.nodes.get('#confirmYes').onclick();
   await confirmation;
   assert.deepEqual(posts, []);
+});
+
+test('startup has no private audio request or browser playback', async () => {
+  const h = await harness();
+  assert.equal(h.requests.filter(r => /presenter-speech\/(speak|test|enable)/.test(r.url)).length, 0);
+  assert.equal(h.captures(), 0);
+});
+
+test('character mouth follows reported speaking state and stops on OFF', async () => {
+  const h = await harness();
+  vm.runInContext("renderPower({on:true, mode:'local', presenter_speech:{enabled:true, phase:'speaking', caption:'Hello'}})", h.ctx);
+  assert.equal(h.nodes.get('#sawtiCharacter').classList.contains('speaking'), true);
+  assert.equal(h.nodes.get('#sawtiCaption').textContent, 'Hello');
+  vm.runInContext("renderPower({on:false, mode:'local'})", h.ctx);
+  assert.equal(h.nodes.get('#sawtiCharacter').classList.contains('speaking'), false);
+  assert.equal(vm.runInContext('S.presenterSpeech.enabled', h.ctx), false);
+});
+
+test('uncommissioned or simulated replies never request presenter playback', async () => {
+  const h = await harness();
+  vm.runInContext('S.on = true', h.ctx);
+  await vm.runInContext("sayToPresenter('Hello')", h.ctx);
+  vm.runInContext("S.simulated = true; S.presenterSpeech.enabled = true", h.ctx);
+  await vm.runInContext("sayToPresenter('Hello')", h.ctx);
+  assert.equal(h.requests.filter(r => r.url === '/api/presenter-speech/speak').length, 0);
+});
+
+test('browser microphone cannot listen while private speech is preparing or speaking', async () => {
+  const h = await harness();
+  vm.runInContext("S.on = true; S.presenterSpeech = {enabled:true, phase:'speaking'}", h.ctx);
+  await vm.runInContext("recordVoice('/api/voice', false)", h.ctx);
+  assert.equal(h.captures(), 0);
+});
+
+test('microphone cannot race a private speech request before its response arrives', async () => {
+  const h = await harness();
+  vm.runInContext("S.on = true; S.presenterSpeech = {enabled:true, phase:'ready'}", h.ctx);
+  let reply;
+  h.ctx.fetch = async () => new Promise(resolve => {reply = resolve;});
+  const speaking = vm.runInContext("sayToPresenter('Hello presenter')", h.ctx);
+  await vm.runInContext("recordVoice('/api/voice', false)", h.ctx);
+  assert.equal(h.captures(), 0);
+  reply({ok:true, json:async () => ({started:true, state:{enabled:true, phase:'preparing'}})});
+  await speaking;
+});
+
+test('unknown private speech state blocks browser capture without pretending it is muted', async () => {
+  const h = await harness();
+  vm.runInContext("S.on = true; renderPresenterSpeech({enabled:false, phase:'unknown'})", h.ctx);
+  await vm.runInContext("recordVoice('/api/voice', false)", h.ctx);
+  assert.equal(h.captures(), 0);
+  assert.match(h.nodes.get('#presenterSpeechState').textContent, /state unavailable/);
+});
+
+test('page close requests only Sawti speech mute with the local protection header', async () => {
+  const h = await harness();
+  vm.runInContext("S.on = true; S.presenterSpeech = {enabled:true, phase:'speaking'}", h.ctx);
+  h.ctx.window.listeners.pagehide();
+  const requests = h.requests.filter(r => r.url === '/api/presenter-speech/mute');
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0].opts.headers['X-Sawti'], '1');
+  assert.equal(requests[0].opts.keepalive, true);
+  assert.equal(vm.runInContext('S.presenterSpeech.enabled', h.ctx), false);
 });

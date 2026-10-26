@@ -67,6 +67,16 @@ def main():
             request('/api/settings', {'recording_root': str(Path(temporary) / 'Recordings')})
             assert request('/api/power/on', {'mode': 'local'})['on'] is True
             assert request('/api/status')['meter']['running'] is False
+            assert request('/api/presenter-speech/state')['enabled'] is False
+            assert request('/api/presenter-speech')['voices'] == []
+            request('/api/presenter-speech/configure', {'uid': 'not-production', 'pair': [3,4],
+                    'voice': {'en': 'Samantha'}, 'studio_idle': True, 'headphone_mapping_confirmed': True}, expect=422)
+            request('/api/presenter-speech/test', {'studio_idle': True, 'operator_confirmed': True}, expect=422)
+            request('/api/presenter-speech/enable', {'studio_idle': True, 'attestations': {}}, expect=422)
+            request('/api/presenter-speech/speak', {'text': 'Hello'}, expect=422)
+            assert request('/api/presenter-speech/mute', {})['enabled'] is False
+            assert request('/api/chat', {'message': 'Has recording started?'})['intent'] == 'record_status'
+            assert request('/api/chat', {'message': 'Is the audio good?'})['intent'] == 'audio_quality'
             identity = request('/api/chat', {'message': 'What is your name?'})
             assert identity['intent'] == 'identity' and identity['actions'] == []
             assert identity['reply'] == 'I’m Sawti (صوتي), your studio assistant.'
@@ -104,6 +114,8 @@ def main():
             meter = request('/api/meter/start', {})['meter']
             assert next(s for s in meter['sources'] if s['id'] == 'guests')['chans'] == [19, 20]
             request('/api/live/start', {})
+            live_reply = request('/api/chat', {'message': 'Has recording started?'})
+            assert 'can’t confirm' in live_reply['reply'] and live_reply['actions'] == []
             request('/api/action/review', {'action': 'set_scarlett_48k'}, expect=422)
             request('/api/power/off', {})
             assert request('/api/power')['on'] is False

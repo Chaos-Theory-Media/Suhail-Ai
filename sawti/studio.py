@@ -13,6 +13,7 @@ from .coreaudio import SHOW_INPUT_NAME, SHOW_INPUT_UID, find_blackhole, find_sca
 from .lifecycle import Lifecycle
 from .meter import Monitor
 from .safety import Approvals, powered, serialised
+from .presenter_speech import PresenterSpeech
 
 SEVERITY_ORDER = {"fail": 0, "warn": 1, "manual": 2, "info": 3, "ok": 4}
 
@@ -42,6 +43,7 @@ class Studio:
         self._stop = threading.Event()
         self.power_epoch = 0
         self.approvals = Approvals(self)
+        self.presenter_speech = PresenterSpeech(self)
 
     def require_on(self):
         if not self.lifecycle.on:
@@ -103,6 +105,7 @@ class Studio:
             raise RuntimeError('Confirm all recording is idle before changing the Podcast plan.')
         self.pretest.cancel()
         self.approvals.invalidate()
+        self.presenter_speech.stop(clear=True)
         # Stop only Sawti capture. Never reopen a stream or touch production audio here.
         self.stop_meter()
         self.mic_plan = plan
@@ -272,6 +275,7 @@ class Studio:
             self.approvals.consume(name, approval, operator_confirmed, studio_idle)
             self.state.pop('confirmed', None)
             if a.agent == 'Devices':
+                self.presenter_speech.stop(clear=True)
                 self.pretest.cancel()
                 self.stop_meter()  # release only Sawti capture before the authorised change
         try:
@@ -343,6 +347,7 @@ class Studio:
         self.pretest.cancel()
         self.approvals.invalidate()
         self.mode = mode
+        self.presenter_speech.stop(clear=True)
         self.mic_plan = None
         self.learn("mode_selected", mode=mode)
         if was_running:
@@ -354,6 +359,9 @@ class Studio:
     def go_live(self, source="operator"):
         if self.live:
             return "Already live."
+        speech = self.presenter_speech.snapshot()
+        if speech['phase'] in ('preparing', 'speaking') and not speech['enabled']:
+            raise RuntimeError('Finish or mute the private headset test before going live or pressing Record.')
         if not self.ensure_meter():
             raise RuntimeError(self.monitor.error or 'Live monitoring could not start. Show was not marked live.')
         self.live, self.live_since = True, time.time()
@@ -392,6 +400,7 @@ class Studio:
     def power_off(self):
         self._stop.set()
         self.power_epoch += 1
+        self.presenter_speech.stop(clear=True)
         self.approvals.invalidate()
         self.mic_plan = None
         if self.live:
@@ -444,4 +453,5 @@ class Studio:
                     ollama=lc["ollama"], ollama_detail=lc["ollama_detail"], keep_awake=lc["keep_awake"],
                     simulated=self.audio.simulated, session=self.state.get("session"),
                     microphone_plan=self.mic_plan,
+                    presenter_speech=self.presenter_speech.snapshot(),
                     notices=list(self.notices)[-8:])

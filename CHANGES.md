@@ -1,3 +1,12 @@
+# 3.1.0 Operator-commissioned presenter voice and animated character
+
+- Add the original SVG golden-microphone character with large glasses, blue eyes, curls, red lips, an automatic text welcome, blinking/breathing motion and speaking-state mouth animation. Respect reduced-motion preferences.
+- Add opt-in local macOS speech, synthesized to temporary files and played through an exact Scarlett UID/index at its verified current rate. Native CoreAudio channel mapping connects only the operator-confirmed USB Playback 3–4 pair. No default output, browser speech, system device change or routing setter is used. English and optional Arabic voices are chosen from the installed catalogue.
+- Require idle commissioning, an explicitly approved test phrase and operator attestations covering headphones, recording exclusion, loopback exclusion and acoustic bleed. Qualification is in memory and is revoked by OFF, mode/mic-plan/device changes or failures. Spoken welcome occurs after enabling, not unconditionally at launch.
+- Coordinate test admission with Go Live/Record/pre-test; cancel synthesis/output on OFF. Protect live PortAudio streams from reinitialisation while an owned speech output exists. Failure to close output blocks speech reuse until restart.
+- Add direct fresh-level and unknown-recording-state answers. A LIVE marker never becomes proof that Audition recorded anything. Log speech outcome metadata without retaining spoken text, voice names or device identity in the learning report.
+- Hardware and recording-isolation tests must be completed on the actual Mac; cloud tests use substitutes. Continuous Mic 1 listening, autonomous countdown and verified Audition transport remain outstanding.
+
 # 3.0.7 Direct conversational help in English and Arabic
 
 - Add concise identity and practical system/Podcast/Zoom/Stop guides. Common educational questions work without Ollama and do not query hardware, switch modes or propose transport commands. Accept the common “Swati” spelling and the reported “recroding” typo in help questions.

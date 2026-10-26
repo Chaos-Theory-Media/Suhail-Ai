@@ -56,6 +56,12 @@ INTENTS = [
 
 def detect(text):
     t = normalise(text)
+    if _has(t, r"\b(has|have) (?:the )?recording (started|begun)\b", r"\b(?:are we|is (?:audition|zoom)) recording\b",
+            r"\bare you recording\b", r"\bdid (?:the )?recording start\b", r"\bhave (you|we) (?:started|begun) (?:the )?recording\b",
+            r"\bis (?:the )?recording (?:on|running|started)\b", r"هل (?:بدأ|يعمل|بدأت) التسجيل", r"هل نسجل"):
+        return 'record_status'
+    if _has(t, r"\bis (?:the |my |our )?(?:audio|sound) (?:good|okay|ok)\b", r"هل الصوت (?:جيد|واضح)"):
+        return 'audio_quality'
     if _has(t, r"\bwhat(?: is|'s|’s) your name\b", r"\bwho are you\b", r"ما (?:هو )?اسمك", r"من أنت", r"من انت"):
         return 'identity'
     howto = _has(t, r"\bhow\s+(can|do|does|to|should|would|could|will)\b",
@@ -158,6 +164,34 @@ def answer(studio, text):
     if guide is not None:
         studio.learn('chat_intent', intent=intent)
         return dict(intent=intent, source='rule', reply=guide, actions=[])
+    if intent == 'record_status':
+        studio.learn('chat_intent', intent=intent)
+        return dict(intent=intent, source='rule', actions=[], reply=(
+            'لا أستطيع تأكيد بدء التسجيل بعد. تحقق من مؤشر التسجيل في أوديشن ومن كتابة الصوت على كل مسار مطلوب.' if ar else
+            'I can’t confirm recording has started yet. Check Audition’s recording indicator and that every intended track is writing audio.'))
+    if intent == 'audio_quality':
+        from . import levels
+        snap = studio.monitor.snapshot()
+        programme = {s['id'] for s in studio.profile()['sources'] if s['role'] in ('programme', 'remote')}
+        coaching = [c for c in levels.coach(studio, snap) if c['id'] in programme]
+        if not snap.get('running') or snap.get('stale') or not coaching:
+            reply = 'لا توجد قياسات حديثة كافية للحكم على الصوت.' if ar else 'I need fresh mic measurements before I can judge the levels.'
+        elif all(c['status'] == 'good' for c in coaching) and len(coaching) == len(programme):
+            reply = 'مستويات الميكروفونات المراقبة جيدة؛ تحقق من التسجيل بصورة منفصلة.' if ar else 'The monitored mic levels look good. Recording integrity still needs a separate check.'
+        else:
+            reply = ' '.join(c['message'] for c in coaching if c['status'] != 'good')
+            if ar:
+                names = {'mic1': 'الميكروفون 1', 'mic2': 'الميكروفون 2', 'mic3': 'الميكروفون 3', 'guests': 'ضيف زوم'}
+                statuses = {'waiting': 'بانتظار الكلام لتقييم المستوى', 'dead': 'بلا إشارة؛ تحقق من المصدر والكابل',
+                            'low': 'منخفض؛ راجع كسب المدخل', 'very_low': 'منخفض جداً؛ راجع كسب المدخل',
+                            'high': 'مرتفع؛ خفّض كسب المدخل', 'hot': 'مرتفع؛ خفّض كسب المدخل',
+                            'clip': 'يتعرض للقص؛ خفّض كسب المدخل'}
+                reply = ' '.join(f"{names.get(c['id'], 'المدخل')}: {statuses.get(c['status'], 'غير متحقق')} ."
+                                 for c in coaching if c['status'] != 'good')
+            if not reply:
+                reply = 'بعض المدخلات لم تُتحقق بعد.' if ar else 'Some intended inputs are still unverified.'
+        studio.learn('chat_intent', intent=intent)
+        return dict(intent=intent, source='rule', actions=[], reply=reply)
     if intent is None:
         llm = llm_answer(studio, text)
         if llm:
@@ -343,6 +377,9 @@ SYSTEM = ("You are Sawti, the studio assistant for IMI podcasts on a Mac Studio 
           "Use at most four short sentences for ordinary questions; for how-to requests, give up to six short numbered steps. "
           "The current app assists with saved Audition templates, operator-led sound checks and approved transport shortcuts. "
           "It does not verify Audition transport or active track inputs, provide hands-free Mic 1 listening, or run an autonomous countdown. "
+          "LIVE is an operator marker, not proof of recording. Recording state is unknown; never claim a recording started. "
+          "Optional spoken replies use the operator-tested Scarlett USB Playback 3–4 headset pair, not main outputs 1–2. "
+          "Headset isolation is operator-attested, not automatically verified; never promise zero acoustic bleed. "
           "Podcast uses 1–3 confirmed programme mics: Mic 1 is presenter, input 4 is talkback and must be excluded from recording. "
           "Use the tools for live facts; "
           "never invent device states. You cannot turn physical gain knobs or press 48V buttons — tell the operator "
@@ -416,8 +453,9 @@ def llm_answer(studio, text):
                     except ValueError:
                         args = {}
                 if name == "get_studio_status":
-                    data = [dict(agent=f["agent"], severity=f["severity"], title=f["title"])
-                            for f in studio.check_all() if f["severity"] != "ok"]
+                    data = dict(recording_state='unknown', live_marker=bool(studio.live),
+                                findings=[dict(agent=f["agent"], severity=f["severity"], title=f["title"])
+                                          for f in studio.check_all() if f["severity"] != "ok"])
                 elif name == "get_levels":
                     snap = studio.monitor.snapshot()
                     data = levels.coach(studio, snap) if snap["running"] else "meters are off"

@@ -117,6 +117,24 @@ table.qc td, table.qc th { border-bottom: 1px solid var(--line); padding: 5px; t
 .card .v { font-size: 16px; font-weight: 600; margin-top: 4px; word-break: break-word; }
 
 .chatpanel { position: sticky; top: 84px; }
+.sawti-stage { display: grid; grid-template-columns: 125px minmax(0, 1fr); align-items: center; gap: 12px; margin-bottom: 8px; }
+.chatpanel:has(#presenterSpeechSetup[open]) { position: static; }
+.sawti-character { filter: drop-shadow(0 8px 14px #0006); }
+.sawti-character svg { display: block; width: 100%; height: auto; }
+.sawti-head { transform-origin: 160px 230px; animation: sawti-breathe 5s ease-in-out infinite; }
+.sawti-eyes { transform-box: fill-box; transform-origin: center; animation: sawti-blink 6s infinite; }
+.sawti-lips-open { opacity: 0; transform-origin: 0 0; }
+.speaking .sawti-lips-open { opacity: 1; animation: sawti-talk .28s ease-in-out infinite alternate; }
+.speaking .sawti-lips-closed { opacity: 0; }
+#sawtiCaption { font-size: 14px; line-height: 1.45; max-height: 150px; overflow: auto; margin: 0; }
+.speech-settings { display: grid; gap: 10px; margin: 12px 0; }
+.speech-settings label { display: grid; gap: 4px; font-size: 13px; }
+.speech-settings label.check { display: flex; align-items: start; }
+.speech-settings select { width: 100%; color: var(--text); background: var(--bg); border: 1px solid var(--line); padding: 8px; border-radius: 6px; }
+@keyframes sawti-breathe { 50% { transform: rotate(1.8deg) translateY(-2px); } }
+@keyframes sawti-blink { 0%, 45%, 49%, 100% { transform: scaleY(1); } 47% { transform: scaleY(.08); } }
+@keyframes sawti-talk { from { transform: scaleY(.35); } to { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .sawti-head, .sawti-eyes, .speaking .sawti-lips-open { animation: none; } }
 .chat { height: 330px; overflow-y: auto; background: #0a1420; border: 1px solid var(--line); border-radius: 10px; padding: 10px; display: flex; flex-direction: column; gap: 8px; }
 .msg { padding: 8px 10px; border-radius: 10px; max-width: 92%; font-size: 14px; white-space: pre-wrap; }
 .msg.me { align-self: flex-end; background: #1b3550; }

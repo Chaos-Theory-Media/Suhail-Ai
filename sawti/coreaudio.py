@@ -62,6 +62,7 @@ class RealAudio:
     def __init__(self):
         self.lock = threading.RLock()
         self.stream_open = False  # PortAudio cannot be re-initialised while a stream is open
+        self.output_streams = 0
         self.last_diagnostics = dict(helper_ok=False, portaudio_ok=False, queried=False)
         self._native_cache = (0.0, [], None)
 
@@ -89,7 +90,7 @@ class RealAudio:
     def _portaudio(self):
         import sounddevice as sd
         with self.lock:
-            if not self.stream_open:
+            if not self.stream_open and not self.output_streams:
                 try:  # pick up devices created since start-up (PortAudio caches the list)
                     sd._terminate()
                     sd._initialize()

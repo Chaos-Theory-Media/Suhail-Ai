@@ -1,4 +1,6 @@
-# Sawti 3.0.7 (صوتي): studio agents for IMI podcasts
+# Sawti 3.1.0 (صوتي): studio agents for IMI podcasts
+
+**Presenter voice and character preview (3.1.0):** Sawti appears as an animated golden microphone with glasses, blue eyes, curls and red lipstick. A text welcome appears at launch. Optional native macOS speech uses the operator-confirmed **Scarlett USB Playback 3–4 → presenter outputs 3–4** path, with other outputs unassigned; no default-speaker/browser fallback is permitted. Spoken welcome/replies require the in-app private-headset test and isolation attestations for the current powered session. Actual Mac playback and recording exclusion remain unqualified in the cloud. See [setup, privacy tests and limitations](audit/presenter-voice/README.md).
 
 **Direct chat answers (3.0.7):** Ask “What is your name?”, “How do I use Sawti?” or “How do I record a Zoom interview?” for a direct answer or short numbered guide, in English or Arabic. Educational questions do not run studio checks or propose transport actions. Local AI instructions now answer first without repeating the question or describing their reasoning; explicit reasoning markers are filtered. Actual Qwen response quality still needs confirmation on the Mac.
 
@@ -66,7 +68,7 @@ the tabs:
 **Ask Sawti** (right side) understands English and Arabic: *"check the studio"*, *"how are the levels?"*,
 *"صوتي، هل برنامج أوديشن يعمل؟"*. Answers come with buttons, so you can act straight away.
 
-**To close Sawti:** press **Quit** on the page. Closing the browser tab releases its voice capture but leaves the control server running; use Quit for complete exit. Terminal signals have cleanup handlers, but an uncatchable crash still requires qualification.
+**To close Sawti:** press **Quit** on the page. Closing the browser tab releases voice capture and attempts to mute private speech, but leaves the control server running; use OFF/Quit for authoritative cancellation. Terminal signals have cleanup handlers, but an uncatchable crash still requires qualification.
 
 ---
 

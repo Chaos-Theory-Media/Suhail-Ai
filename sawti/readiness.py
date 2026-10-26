@@ -36,17 +36,21 @@ def report(studio):
         blocks.append('Fresh microphone measurements are unavailable.')
     blocks += [
         'Active Audition session, input assignments, armed tracks and transport are not yet automatically verified.',
-        'The Mic 1 hands-free listener, spoken responses and cancellable countdown are not implemented.',
+        'The Mic 1 hands-free listener and cancellable countdown are not implemented.',
         'The full recording workflow needs physical Mac qualification; simulation is insufficient.',
     ]
     def bundle(kind):
         found = applications.discover(kind) if not studio.audio.simulated else None
         return {k: found[k] for k in ('name', 'bundle_id', 'version', 'build')} if found else None
+    speech = studio.presenter_speech.snapshot()
+    if not speech['enabled']:
+        blocks.append('Private presenter speech is muted until the operator completes headset isolation tests.')
     return dict(schema=1, simulated=studio.audio.simulated, system=system_info(),
                 applications=dict(audition=bundle('audition'), focusrite=bundle('focusrite')),
                 microphone_plan=studio.mic_plan, session_prepared=bool(session),
                 monitoring_fresh=bool(snap.get('running') and not snap.get('stale')),
                 recording_state='unknown', full_autonomy_ready=False, blockers=blocks,
+                private_presenter_voice={k: speech[k] for k in ('configured', 'enabled', 'test_completed', 'pair', 'privacy_automatically_verified')},
                 routing_changed=False,
                 note='Installed versions are observations, not evidence of automation compatibility.')
 

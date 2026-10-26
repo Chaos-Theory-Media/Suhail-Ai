@@ -1,0 +1,26 @@
+{
+  "version": "3.1.0",
+  "python_passed": 186,
+  "presenter_speech_tests": 27,
+  "javascript_passed": 33,
+  "http_passed": 49,
+  "shell_syntax": "passed",
+  "environment": "Linux cloud; isolated simulation, fake CoreAudio/output callbacks and synthesis process",
+  "character_preview": "Source SVG rasterisation reviewed; not a browser screenshot",
+  "reported_usb_playback_pair": [
+    3,
+    4
+  ],
+  "reported_headphone_outputs": [
+    3,
+    4
+  ],
+  "reported_speaker_outputs": [
+    1,
+    2
+  ],
+  "real_mac_playback_tested": false,
+  "actual_isolation_verified": false,
+  "automatic_recording_state_verification": false,
+  "audible_startup": false
+}
