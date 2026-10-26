@@ -201,6 +201,24 @@
     <!-- SETTINGS -->
     <div class="panel tabpanel" id="tab-settings" hidden>
       <h2>Settings</h2>
+      <h3>Local AI models</h3>
+      <p class="hint">The enhanced profile is designed for the M1 Ultra with 128 GB. Downloads happen only in the installer. Switch Sawti OFF before changing the chat model. Enhanced inference is held during Live until Mac audio performance is qualified; built-in level checks remain available.</p>
+      <label>Chat model<select id="setChatModel">
+        <option value="qwen3:4b">Qwen3 4B · existing lightweight model</option>
+        <option value="qwen3:30b-a3b-q4_K_M">Qwen3 30B-A3B Q4_K_M · recommended M1 Ultra profile</option>
+      </select></label>
+      <div class="row gap mt"><button class="btn" id="refreshModels">Refresh model status</button><button class="btn" id="checkModels">Test specialist models while idle</button></div>
+      <p id="modelStatus" class="hint" role="status">Refresh to see downloaded models.</p>
+      <h3>Local reference library</h3>
+      <p class="hint">Import manuals or reviewed studio notes you are entitled to use. References stay local; they do not authorise actions. Use Ask manuals in chat for a combined answer with sources. Up to 400 passages; split large manuals into relevant chapters.</p>
+      <div class="grid2">
+        <label>Reference title<input id="referenceTitle" maxlength="120" placeholder="Focusrite Scarlett 18i8 manual"></label>
+        <label>Version / edition<input id="referenceVersion" maxlength="80" placeholder="3rd Generation"></label>
+        <label>Reference file<input id="referenceFile" type="file" accept=".pdf,.txt,.md"></label>
+        <label class="check"><input id="referenceRights" type="checkbox"> I may use this document locally</label>
+      </div>
+      <div class="row gap mt"><button class="btn" id="importReference">Import while production is idle</button><button class="btn" id="refreshReferences">Refresh references</button></div>
+      <div id="referenceList" class="hint"></div>
       <div class="grid2">
         <label>Recording folder<input id="setRoot" autocomplete="off"></label>
         <label>Episode loudness (LUFS)<input id="setLufs" type="number" step="0.5" min="-24" max="-12"></label>
@@ -315,6 +333,7 @@
         <button class="btn primary" type="submit">Send</button>
       </form>
       <div class="row gap mt">
+        <button class="btn" id="askManuals">Ask manuals using the question above</button>
         <button class="btn" id="voiceBtn" hidden>🎙 Tap to speak</button>
         <span id="voiceState" class="hint"></span>
       </div>

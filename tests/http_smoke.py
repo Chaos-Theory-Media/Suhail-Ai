@@ -62,10 +62,19 @@ def main():
             request('/static/app.js')
             request('/static/app.css')
             assert request('/api/power')['on'] is False
+            model_status = request('/api/models')
+            assert model_status['hardware_qualified'] is False and model_status['chat']['available'] is False
+            assert 'qwen3:30b-a3b-q4_K_M' in model_status['supported_chat_models']
+            request('/api/knowledge', expect=503)
             request('/api/checks', expect=503)
             request('/api/power/on', {}, expect=403, extra={'Origin': 'https://foreign.example'})
             request('/api/settings', {'recording_root': str(Path(temporary) / 'Recordings')})
             assert request('/api/power/on', {'mode': 'local'})['on'] is True
+            assert request('/api/knowledge')['documents'] == []
+            request('/api/models/check', {'studio_idle': False}, expect=400)
+            request('/api/models/check', {'studio_idle': True}, expect=400)
+            request('/api/knowledge/ask', {'message': 'How should headphones be routed?'}, expect=400)
+            request('/api/settings', {'llm_model': 'qwen3:30b-a3b-q4_K_M'}, expect=409)
             assert request('/api/status')['meter']['running'] is False
             assert request('/api/presenter-speech/state')['enabled'] is False
             assert request('/api/presenter-speech')['voices'] == []

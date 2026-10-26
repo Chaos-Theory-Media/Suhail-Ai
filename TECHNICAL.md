@@ -12,6 +12,8 @@ The notes below describe the original 3.0 design and are superseded where they c
 - `requirements-cloud.lock` pins the tested Linux/CI dependencies. macOS dependency locking and installer acceptance remain outstanding.
 - Installer retains quarantine metadata, verifies uv checksums, checks Ollama signature/Gatekeeper, and preloads optional voice models. These macOS operations were statically reviewed, not executed here.
 
+3.2.0 adds the optional M1 Ultra model profile in `sawti/models.py`, installer-only downloads in `helpers/install_models.py`, and an isolated offline specialist process in `helpers/model_worker.py`. Qwen3 4B remains supported; the recommended exact tag is `qwen3:30b-a3b-q4_K_M`. Native MLX speech, BGE-M3 dense retrieval and BGE reranking use a separate pinned Python 3.12 environment. Enhanced tasks are serial and blocked during Live pending Mac performance qualification. `sawti/knowledge.py` stores operator-imported version-labelled reference passages; reference answers expose no action tools/buttons. No wake listener, autonomous recording or verified Audition state is added. See [model compatibility and acceptance](audit/models/README.md).
+
 Original design notes (historical claims require the qualifications above):
 
 # Sawti 3.0: technical notes (IT / DevOps)

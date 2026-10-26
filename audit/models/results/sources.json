@@ -1,0 +1,29 @@
+{
+  "sources": [
+    {
+      "source": "https://github.com/ollama/ollama/blob/main/docs/macos.mdx",
+      "sha256": "abcf6fdb4cdaab173af2e2c3d19b363a87d6b5dc64300c363e3f9bc7364b0d98",
+      "retrieved_utc": "2026-10-26T16:44:42.713907+00:00"
+    },
+    {
+      "source": "https://github.com/QwenLM/Qwen3/blob/main/README.md",
+      "sha256": "0b2c2bb11806f7a00c8465f2586e2e99f15de28622fd5c9b70b83ae1ab18c75d",
+      "retrieved_utc": "2026-10-26T16:44:42.714028+00:00"
+    },
+    {
+      "source": "https://github.com/FlagOpen/FlagEmbedding/blob/master/README.md",
+      "sha256": "46500109787496a729e233c6a74ac5be2148a48108ad26e39e7de964dc0f5ca3",
+      "retrieved_utc": "2026-10-26T16:44:42.714091+00:00"
+    },
+    {
+      "source": "https://github.com/ml-explore/mlx-examples/blob/main/whisper/README.md",
+      "sha256": "e91b372bea6200f01a4e2eb127bacef62e885eedb4ab4cc6ce0ed4b07c700a73",
+      "retrieved_utc": "2026-10-26T16:44:42.714109+00:00"
+    }
+  ],
+  "registry_access": "Ollama and Hugging Face model registries returned proxy 403 from this cloud environment. Exact downloads and immutable model revisions must be verified by the installer on the Mac.",
+  "pinned_api_review": [
+    "mlx-whisper 0.4.3: transcribe(path_or_hf_repo), ModelHolder, weights.safetensors/weights.npz",
+    "sentence-transformers 5.2.0: local_files_only and use_safetensors model_kwargs verified against published wheel source"
+  ]
+}

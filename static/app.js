@@ -21,7 +21,7 @@ function h(tag, attrs = {}, ...kids) {
 async function api(path, opts = {}) {
   const init = { method: opts.method || (opts.body !== undefined || opts.form ? 'POST' : 'GET'), headers: {} };
   if (init.method !== 'GET') init.headers['X-Sawti'] = '1';
-  const open = ['/api/app', '/api/power', '/api/power/on', '/api/power/off', '/api/quit', '/api/settings'];
+  const open = ['/api/app', '/api/power', '/api/power/on', '/api/power/off', '/api/quit', '/api/settings', '/api/models'];
   if (!S.on && !open.includes(path)) throw new Error('Sawti is OFF. Switch it ON first.');
   if (opts.form) init.body = opts.form;
   else if (opts.body !== undefined) { init.headers['Content-Type'] = 'application/json'; init.body = JSON.stringify(opts.body); }
@@ -443,6 +443,7 @@ async function loadSettings() {
   if (!r) return;
   S.settings = r.settings; S.profiles = r.profiles;
   const s = r.settings;
+  $('#setChatModel').value = s.llm_model;
   $('#setRoot').value = s.recording_root; $('#setLufs').value = s.loudness_target; $('#setTp').value = s.true_peak;
   $('#setSpeech').value = s.speech_target; $('#setLeveler').checked = !!s.leveler_enabled; $('#setLevOut').value = s.leveler_output;
   $('#setShowLocal').value = (s.show_name || {}).local || ''; $('#setShowZoom').value = (s.show_name || {}).zoom || '';
@@ -455,12 +456,49 @@ async function loadSettings() {
 $('#saveSettings').addEventListener('click', async () => {
   const names = { local: {}, zoom: {} };
   $$('#nameFields input').forEach((i) => { names[i.dataset.mode][i.dataset.src] = i.value.trim(); });
-  const body = { recording_root: $('#setRoot').value.trim(), loudness_target: parseFloat($('#setLufs').value),
+  const body = { llm_model: $('#setChatModel').value, recording_root: $('#setRoot').value.trim(), loudness_target: parseFloat($('#setLufs').value),
     true_peak: parseFloat($('#setTp').value), speech_target: parseFloat($('#setSpeech').value),
     leveler_enabled: $('#setLeveler').checked, leveler_output: $('#setLevOut').value.trim(), source_names: names,
     show_name: { local: $('#setShowLocal').value.trim(), zoom: $('#setShowZoom').value.trim() } };
   const r = await guard(() => api('/api/settings', { body }), 'Settings saved.');
   if (r) { S.settings = r.settings; }
+});
+
+$('#refreshModels').addEventListener('click', async () => {
+  const r = await guard(() => api('/api/models'));
+  if (!r) return;
+  $('#modelStatus').textContent = `Selected chat: ${r.chat_model} · ${r.chat.available ? 'available locally' : 'not ready; check download or switch ON'}. ` + Object.entries(r.specialists).map(([role, m]) =>
+    `${role}: ${m.downloaded ? 'downloaded · runtime test required' : 'not installed'}`).join('; ') +
+    (r.last_check ? ' · Synthetic specialist check passed this run; studio qualification remains pending.' : ' · No specialist runtime check this run.');
+});
+$('#checkModels').addEventListener('click', async () => {
+  if (!(await ask('Confirm all production recording is idle. Run local model probes using synthetic audio and text? No audio will be played. This can take several minutes.'))) return;
+  $('#modelStatus').textContent = 'Testing local specialists…';
+  const r = await guard(() => api('/api/models/check', {body: {studio_idle: true}}));
+  $('#modelStatus').textContent = r ? r.message : 'Model check did not complete. Check installation and retry while idle.';
+});
+function renderReferences(documents) {
+  $('#referenceList').replaceChildren(...documents.map(d => h('div', {},
+    `${d.title} · ${d.version} · ${d.chunks} passages `,
+    h('button', {class: 'btn small', text: 'Remove', onclick: async () => {
+      if (!(await ask(`Remove ${d.title} from Sawti’s reference library? The original file is preserved.`))) return;
+      const r = await guard(() => api(`/api/knowledge/${d.id}`, {method: 'DELETE'}));
+      if (r) renderReferences(r.documents);
+    }}))));
+}
+$('#refreshReferences').addEventListener('click', async () => {
+  const r = await guard(() => api('/api/knowledge'));
+  if (r) renderReferences(r.documents);
+});
+$('#importReference').addEventListener('click', async () => {
+  const file = $('#referenceFile').files[0];
+  if (!file || !$('#referenceRights').checked) return toast('Choose a reference and confirm you may use it.', 'warn');
+  if (!(await ask('Confirm production is idle. Import this reference into Sawti’s local library?'))) return;
+  const data = new FormData();
+  data.append('file', file); data.append('title', $('#referenceTitle').value);
+  data.append('version', $('#referenceVersion').value); data.append('rights_confirmed', 'true'); data.append('studio_idle', 'true');
+  const r = await guard(() => api('/api/knowledge/import', {form: data}));
+  if (r) renderReferences(r.documents);
 });
 
 // presenters (only when voice features are installed)
@@ -596,6 +634,18 @@ async function send(text) {
   catch (e) { addMsg('Sawti', e.message); }
 }
 $('#chatForm').addEventListener('submit', (e) => { e.preventDefault(); const t = $('#chatInput').value.trim(); if (!t) return; $('#chatInput').value = ''; send(t); });
+$('#askManuals').addEventListener('click', async () => {
+  const text = $('#chatInput').value.trim();
+  if (!text) return toast('Type your question in the chat box first.', 'warn');
+  addMsg('You', text);
+  $('#chatInput').value = '';
+  try {
+    const r = await api('/api/knowledge/ask', {body: {message: text}});
+    const sources = r.references.map(ref => `[${ref.number}] ${ref.title} · ${ref.version} · page ${ref.page}`).join('\n');
+    addMsg('Sawti · local references', `${r.reply}\n\nSources:\n${sources}`, []);
+    sayToPresenter(r.reply);
+  } catch (e) { addMsg('Sawti', e.message); }
+});
 
 let recorder = null, voiceStream = null, voiceGeneration = 0, voicePending = false, voiceTimer = null;
 function stopVoice() {

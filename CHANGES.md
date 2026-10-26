@@ -1,3 +1,12 @@
+# 3.2.0 Enhanced local models for the M1 Ultra (Mac qualification preview)
+
+- Offer Qwen3-30B-A3B Q4_K_M instead of the former fixed Qwen3 4B, retaining the existing model and requiring downloaded model details/tool support before activating the upgrade. Changing the selection in Settings requires OFF. Use bounded 8K context, disabled thinking, one loaded Ollama model and one parallel request.
+- Add isolated, pinned Apple Silicon specialist dependencies: MLX Whisper large-v3-turbo, BGE-M3 embeddings and BGE reranker v2 M3. Download only during installation; resolve immutable Hugging Face revisions and use local paths/offline mode during everyday operation. Keep the working audio venv separate.
+- Add model inventory and synthetic inference checks. Serialise enhanced tasks, cancel the owned specialist process on OFF, discard obsolete results, and hold enhanced inference during Live pending actual Mac performance qualification. Built-in level/recording-status answers remain available.
+- Add private local PDF/text/Markdown reference import, version labels, multilingual dense retrieval plus reranking, and an Ask manuals answer with source labels and no action tools/buttons. No manufacturer manuals are bundled. Reference capacity and lack of scanned-PDF OCR are explicit.
+- Extend clean uninstall to owned specialist processes/runtime/models and imported reference copies. Preserve original documents, shared Ollama and recordings.
+- Apple Silicon dependency resolution and Linux regression/safety tests are evidence of integration compatibility, not Mac inference, language accuracy, recording integrity or audio-isolation qualification. See `audit/models/README.md`.
+
 # 3.1.0 Operator-commissioned presenter voice and animated character
 
 - Add the original SVG golden-microphone character with large glasses, blue eyes, curls, red lips, an automatic text welcome, blinking/breathing motion and speaking-state mouth animation. Respect reduced-motion preferences.

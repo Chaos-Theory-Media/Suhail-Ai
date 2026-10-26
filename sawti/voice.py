@@ -1,4 +1,5 @@
-"""Optional voice: offline speech-to-text (faster-whisper) and tentative presenter recognition (Resemblyzer).
+"""Optional offline speech: MLX Whisper on enhanced Macs, existing faster-whisper otherwise.
+Tentative voluntary presenter recognition uses Resemblyzer.
 Installed only if the operator chose voice features in the installer. Models load once and stay cached.
 Speaker recognition is a convenience label, never authentication.
 """
@@ -19,7 +20,10 @@ MARGIN = 0.06
 
 
 def available():
-    return dict(transcribe=importlib.util.find_spec("faster_whisper") is not None and shutil.which("ffmpeg") is not None,
+    from .models import installed
+    enhanced = installed('speech')
+    return dict(transcribe=(enhanced or importlib.util.find_spec("faster_whisper") is not None) and shutil.which("ffmpeg") is not None,
+                backend='mlx-whisper-large-v3-turbo' if enhanced else 'faster-whisper-small',
                 identify=importlib.util.find_spec("resemblyzer") is not None and shutil.which("ffmpeg") is not None)
 
 
@@ -54,13 +58,19 @@ def _encoder():
     return VoiceEncoder()
 
 
-def transcribe(audio, language=None):
+def transcribe(audio, language=None, studio=None):
     if not available()["transcribe"]:
         raise RuntimeError("Voice commands are not installed on this Mac.")
     with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as f:
         f.write(as_wav(audio))
         path = f.name
     try:
+        from .models import installed
+        if installed('speech'):
+            if studio is None:
+                raise RuntimeError('Enhanced speech requires Sawti service ownership.')
+            return studio.local_models.run('transcribe', {'path': path,
+                'language': language if language in ('en', 'ar') else None})['text']
         segs, _ = _whisper().transcribe(path, language=language if language in ("en", "ar") else None, vad_filter=True)
         return " ".join(s.text.strip() for s in segs).strip()
     finally:

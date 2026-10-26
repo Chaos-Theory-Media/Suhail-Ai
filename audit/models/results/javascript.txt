@@ -1,0 +1,43 @@
+✔ inspection reads controls without activating, typing, clicking or reading programme text (5.763295ms)
+✔ absent Audition is reported without launching it (1.558945ms)
+✔ unexpected bundle ID is rejected before accessing System Events (1.81514ms)
+✔ permission failures remain unavailable rather than declaring success (1.823906ms)
+✔ wide and deep trees remain bounded and explicitly truncated (2.241776ms)
+✔ OFF never asks for microphone access (22.502113ms)
+✔ simulation never asks for a real microphone (2.377426ms)
+✔ OFF releases active browser capture and discards its upload (3.05938ms)
+✔ late permission grant after OFF releases tracks without starting capture (3.479434ms)
+✔ recorder construction failure releases the acquired microphone (3.228011ms)
+✔ server OFF from another client stops this tab after status sync (5.007977ms)
+✔ a delayed status response cannot re-enable UI after local OFF (6.294018ms)
+✔ status polling preserves an unconfirmed microphone choice (2.714073ms)
+✔ loading an existing confirmed plan populates the microphone selector (5.462083ms)
+✔ polling the same confirmed plan preserves a pending replacement choice (1.918938ms)
+✔ a new plan from another tab replaces a stale microphone draft (1.79571ms)
+✔ OFF, mode changes and a missed power cycle clear the microphone draft (3.215621ms)
+✔ confirmation sends the chosen inputs and ignores an older pending status response (4.424491ms)
+✔ OFF during the confirmation dialog prevents a microphone submission (1.562378ms)
+✔ startup has no private audio request or browser playback (2.254051ms)
+✔ character mouth follows reported speaking state and stops on OFF (1.548178ms)
+✔ uncommissioned or simulated replies never request presenter playback (1.799169ms)
+✔ browser microphone cannot listen while private speech is preparing or speaking (1.601245ms)
+✔ microphone cannot race a private speech request before its response arrives (2.790017ms)
+✔ unknown private speech state blocks browser capture without pretending it is muted (1.421482ms)
+✔ page close requests only Sawti speech mute with the local protection header (1.385089ms)
+✔ model status remains readable while OFF without starting services or microphones (1.322455ms)
+✔ manual uploads preserve multipart encoding and carry the local write header (1.540536ms)
+✔ shell quoting preserves spaces, quotes and literal substitutions (14.113441ms)
+✔ cancel before idle authorisation makes no stop or delete call (7.075361ms)
+✔ cancel component selection never removes files (2.334019ms)
+✔ unverified process stops native uninstall before file removal (4.556898ms)
+✔ missing interpreters fail without cleanup (1.770916ms)
+✔ device removal requires its separate native confirmation (1.996899ms)
+✔ reviewed normal flow calls the constrained cleanup engine (2.22266ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 164.805165

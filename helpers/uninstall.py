@@ -235,7 +235,7 @@ class Uninstaller:
         for folder in (self.support / 'run', self.support / 'simulation/run'):
             if folder.is_symlink():
                 continue
-            for name in ('server.json', 'ollama.json', 'caffeinate.json'):
+            for name in ('server.json', 'ollama.json', 'caffeinate.json', 'model-worker.json'):
                 record = load_json(folder / name)
                 ident = record.get('identity') or {}
                 if not isinstance(ident, dict):
@@ -328,7 +328,7 @@ class Uninstaller:
             known.update(('runtime', 'models', 'venv', 'bin', 'cache', 'run', 'install.log', 'installation.json'))
         if 'data' in components:
             known.update(('sawti.sqlite3', 'sawti.sqlite3-wal', 'sawti.sqlite3-shm', 'sawti-before-v3.sqlite3',
-                          'templates', 'simulation', 'learning_reports'))
+                          'templates', 'simulation', 'learning_reports', 'knowledge'))
         for name in sorted(known):
             if name == 'learning_reports':
                 folder = self.support / name

@@ -1,0 +1,19 @@
+{
+  "version": "3.2.0",
+  "python_tests": 209,
+  "javascript_checks": 35,
+  "live_http_checks": 56,
+  "apple_silicon_dependency_resolution": {
+    "passed": true,
+    "python": "3.12",
+    "platform": "aarch64-apple-darwin",
+    "binary_wheels_only": true,
+    "packages": 39
+  },
+  "installer_syntax": "passed",
+  "diff_whitespace": "passed",
+  "real_mac_inference_tested": false,
+  "model_weights_downloaded_in_cloud": false,
+  "audio_continuity_tested_on_mac": false,
+  "qualification": "Integration preview; actual Mac model downloads, inference, accuracy, throughput and production audio qualification pending."
+}

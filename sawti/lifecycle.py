@@ -16,6 +16,7 @@ import time
 import urllib.request
 
 from . import paths
+from .models import CHAT_MODELS
 
 OLLAMA_HOST = "127.0.0.1"
 OLLAMA_PORT = 11439
@@ -132,6 +133,7 @@ class Lifecycle:
         self.on = False
         self.ollama = Managed("ollama")
         self.awake = Managed("caffeinate")
+        self.model_worker = Managed('model-worker')
         self.ollama_state = "stopped"   # stopped | starting | ready | failed | missing | external
         self.ollama_detail = ""
         self._installed = False
@@ -144,6 +146,7 @@ class Lifecycle:
         self._installed = True
         self.ollama.cleanup_stale()
         self.awake.cleanup_stale()
+        self.model_worker.cleanup_stale()
         atexit.register(self.shutdown)
 
         def handler(signum, frame):
@@ -168,7 +171,10 @@ class Lifecycle:
         with self.lock:
             self.on = False
             try:
-                self.ollama.stop()
+                try:
+                    self.model_worker.stop()
+                finally:
+                    self.ollama.stop()
             finally:
                 self.ollama_state = "stopped"
                 self.keep_awake(False)
@@ -195,6 +201,9 @@ class Lifecycle:
         env["OLLAMA_HOST"] = f"{OLLAMA_HOST}:{OLLAMA_PORT}"
         env["OLLAMA_MODELS"] = str(paths.models_dir())
         env['OLLAMA_NO_CLOUD'] = '1'
+        env['OLLAMA_NUM_PARALLEL'] = '1'
+        env['OLLAMA_MAX_LOADED_MODELS'] = '1'
+        env['OLLAMA_CONTEXT_LENGTH'] = '8192'
         try:
             self.ollama.start([binary, "serve"], env=env, marker=binary)
         except OSError as exc:
@@ -217,8 +226,10 @@ class Lifecycle:
                 with self.lock:
                     if not self.on or self.ollama.proc is not owned or not self.ollama.running():
                         return
-                    self.ollama_state = 'ready' if 'qwen3:4b' in names else 'missing'
-                    self.ollama_detail = 'Local Qwen3 4B ready.' if self.ollama_state == 'ready' else 'Install the exact local qwen3:4b model.'
+                    found = [model for model in CHAT_MODELS if model in names]
+                    self.ollama_state = 'ready' if found else 'missing'
+                    self.ollama_detail = ('Local AI service ready; selected model availability is checked before each answer.'
+                                          if found else 'No supported local Qwen3 model is installed.')
                 return
             except Exception:
                 time.sleep(0.5)

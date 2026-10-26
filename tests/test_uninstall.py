@@ -80,6 +80,21 @@ class UninstallTests(unittest.TestCase):
     def execute(self, components=('app', 'runtime', 'data')):
         return self.engine.execute(self.engine.plan(components), confirm_idle=True)
 
+    def test_model_and_reference_cleanup_preserves_original_manual(self):
+        original = self.home / 'Documents/Focusrite manual.pdf'
+        original.write_bytes(b'original manual')
+        references = self.support / 'knowledge'
+        references.mkdir()
+        (references / 'reference.json').write_text('{"title":"Imported copy"}')
+        runtime = self.support / 'runtime/models-venv'
+        runtime.mkdir()
+        (runtime / 'python-marker').write_text('private runtime')
+        result = self.execute()
+        self.assertTrue(original.is_file())
+        self.assertFalse(references.exists())
+        self.assertFalse(runtime.exists())
+        self.assertTrue(any(item['original'].endswith('/knowledge') for item in result['moved']))
+
     def test_preview_is_non_destructive(self):
         plan = self.engine.plan(('app', 'runtime', 'data'))
         self.assertTrue(plan['remove'])

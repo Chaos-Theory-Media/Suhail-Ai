@@ -1,10 +1,10 @@
 #!/bin/zsh
-# Sawti 3.1.0 installer for Apple-silicon Macs (macOS 14 Sonoma or newer).
+# Sawti 3.2.0 installer for Apple-silicon Macs (macOS 14 Sonoma or newer).
 # Safe to run again at any time: it repairs or updates what is missing and keeps settings and learning.
 #
 # Installs, all inside ~/Library/Application Support/Sawti (nothing in /Applications is changed):
 #   * its own Python (via uv) and libraries       * the Sawti audio helper (compiled here from helpers/)
-#   * a private Ollama + Qwen3 4B (optional)      * offline voice features (optional)
+#   * a private Ollama + Qwen3 (standard or enhanced)      * offline voice features (optional)
 #   * the "Sawti" app in ~/Applications and an alias on the Desktop
 set -u
 HERE="${0:A:h}"
@@ -15,6 +15,7 @@ MODELS="$SUPPORT/models"
 VENV="$SUPPORT/venv"
 LOG="$SUPPORT/install.log"
 MODEL="qwen3:4b"
+WANT_ENHANCED=0
 mkdir -p "$RUNTIME" "$BIN" "$MODELS" "$SUPPORT/run"
 exec > >(tee -a "$LOG") 2>&1
 
@@ -34,7 +35,7 @@ fail() { print "\n✖ $1\n  Setup stopped; earlier completed steps may remain. F
 yes_no() { local a; read "a?$1 [y/n]: "; [[ "$a" == [yY]* ]]; }
 
 print "────────────────────────────────────────────"
-print " Sawti 3.1.0 · studio agents · installer"
+print " Sawti 3.2.0 · studio agents · installer"
 print "────────────────────────────────────────────"
 [[ "$(uname -s)" == "Darwin" ]] || fail "This installer is for macOS."
 [[ "$(uname -m)" == "arm64" ]] || fail "An Apple-silicon Mac (M1 or newer) is required."
@@ -50,16 +51,25 @@ for active_port in 8765 8766; do
   fi
 done
 
-print "\nThis will download about 3–4 GB (Python, libraries, local AI) the first time."
+print "\nThe standard setup downloads about 3–4 GB; the enhanced M1 Ultra stack needs at least 60 GB free for installation headroom."
 WANT_AI=1; WANT_VOICE=0
-yes_no "Install the local AI assistant (Qwen3 4B, about 2.6 GB, recommended)?" || WANT_AI=0
-yes_no "Install offline voice commands (speech-to-text, about 1.5 GB more)?" && WANT_VOICE=1
+yes_no "Install the local AI assistant?" || WANT_AI=0
+if (( WANT_AI )) && yes_no "Use the enhanced M1 Ultra / 128 GB profile (Qwen3 30B-A3B Q4, MLX Whisper large-v3-turbo, BGE search and reranker; recommended for your studio)?"; then
+  MEMORY_BYTES=$(sysctl -n hw.memsize)
+  FREE_KB=$(df -k "$SUPPORT" | awk 'END {print $4}')
+  (( MEMORY_BYTES >= 68719476736 )) || fail "The enhanced profile requires at least 64 GB RAM. Run again and choose the standard profile."
+  (( FREE_KB >= 62914560 )) || fail "The enhanced profile requires at least 60 GB free. Make space or select the standard profile."
+  WANT_ENHANCED=1
+  MODEL="qwen3:30b-a3b-q4_K_M"
+fi
+yes_no "Also install voluntary presenter recognition and the legacy speech fallback (about 1.5 GB more)?" && WANT_VOICE=1
 
 # ---------------------------------------------------------------- Python (no system Python needed)
 step "Python and libraries"
 UV="$RUNTIME/uv/uv"
 export UV_PYTHON_INSTALL_DIR="$RUNTIME/python" UV_CACHE_DIR="$SUPPORT/cache/uv"
 export PIP_CACHE_DIR="$SUPPORT/cache/pip" HF_HOME="$SUPPORT/cache/huggingface"
+export HF_HUB_DISABLE_TELEMETRY=1 HF_HUB_DISABLE_IMPLICIT_TOKEN=1
 if [[ ! -x "$UV" ]]; then
   TMP=$(mktemp -d)
   if curl --fail --location --retry 2 --silent --show-error \
@@ -125,7 +135,11 @@ if (( WANT_AI )); then
   step "Local AI (private Ollama on port 11439, model $MODEL)"
   OLLAMA_APP="$RUNTIME/Ollama.app"
   OLLAMA_BIN="$OLLAMA_APP/Contents/Resources/ollama"
-  if [[ ! -x "$OLLAMA_BIN" ]]; then
+  # Refresh Sawti's private Ollama for the enhanced model/API, retaining shared installs.
+  if [[ ! -x "$OLLAMA_BIN" ]] || (( WANT_ENHANCED )); then
+    if lsof -nP -iTCP:11439 -sTCP:LISTEN >/dev/null 2>&1; then
+      fail "Port 11439 is occupied. Quit Sawti before updating its private AI runtime; no service was stopped."
+    fi
     TMP=$(mktemp -d)
     curl --fail --location --retry 2 --progress-bar \
          "https://github.com/ollama/ollama/releases/latest/download/Ollama-darwin.zip" -o "$TMP/Ollama.zip" \
@@ -159,6 +173,8 @@ if (( WANT_AI )); then
       OLLAMA_HOST="127.0.0.1:11439" "$OLLAMA_BIN" pull "$MODEL" || fail "Model download failed."
       ok "$MODEL downloaded"
     fi
+    PYTHONPATH="$HERE" "$VENV/bin/python" "$HERE/helpers/install_models.py" --activate-chat "$MODEL" \
+      || warn "The new chat model was not activated. Existing model selection is retained; review the log."
     cleanup
   fi
 fi
@@ -180,6 +196,25 @@ if (( WANT_VOICE )); then
   else
     warn "Voice needs ffmpeg (install Homebrew, then run this installer again). Skipped."
   fi
+fi
+
+# ---------------------------------------------------------------- enhanced specialists (isolated from the audio runtime)
+if (( WANT_ENHANCED )); then
+  step "Enhanced local speech and document models"
+  MODELS_VENV="$RUNTIME/models-venv"
+  if [[ -x "$UV" ]]; then
+    [[ -x "$MODELS_VENV/bin/python" ]] || "$UV" venv --python 3.12 "$MODELS_VENV" || fail "Could not create the specialist runtime."
+    "$UV" pip install --python "$MODELS_VENV/bin/python" -r "$HERE/requirements-models-macos.lock" || fail "Specialist library installation failed; existing audio runtime is unchanged."
+  else
+    "$VENV/bin/python" -m venv "$MODELS_VENV" || fail "Could not create the specialist runtime."
+    "$MODELS_VENV/bin/python" -m pip install -r "$HERE/requirements-models-macos.lock" || fail "Specialist library installation failed."
+  fi
+  PYTHONPATH="$HERE" "$MODELS_VENV/bin/python" "$HERE/helpers/install_models.py" --specialists \
+    || warn "Specialist downloads are incomplete. Existing features remain available; re-run setup to retry."
+  if ! command -v ffmpeg >/dev/null 2>&1; then
+    if command -v brew >/dev/null 2>&1; then brew install ffmpeg || warn "ffmpeg install failed."; fi
+  fi
+  command -v ffmpeg >/dev/null 2>&1 || warn "Speech transcription needs ffmpeg. Ask IT to install it, then re-run setup."
 fi
 
 # ---------------------------------------------------------------- Sawti app

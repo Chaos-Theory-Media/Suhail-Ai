@@ -1,2 +1,2 @@
 """Sawti (صوتي) — local agentic studio controller for IMI podcasts."""
-VERSION = "3.1.0"
+VERSION = "3.2.0"

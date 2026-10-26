@@ -14,6 +14,7 @@ from .lifecycle import Lifecycle
 from .meter import Monitor
 from .safety import Approvals, powered, serialised
 from .presenter_speech import PresenterSpeech
+from .models import LocalModels
 
 SEVERITY_ORDER = {"fail": 0, "warn": 1, "manual": 2, "info": 3, "ok": 4}
 
@@ -44,6 +45,7 @@ class Studio:
         self.power_epoch = 0
         self.approvals = Approvals(self)
         self.presenter_speech = PresenterSpeech(self)
+        self.local_models = LocalModels(self)
 
     def require_on(self):
         if not self.lifecycle.on:
@@ -359,6 +361,8 @@ class Studio:
     def go_live(self, source="operator"):
         if self.live:
             return "Already live."
+        if self.local_models.busy:
+            raise RuntimeError('Finish the local model task before going live or pressing Record.')
         speech = self.presenter_speech.snapshot()
         if speech['phase'] in ('preparing', 'speaking') and not speech['enabled']:
             raise RuntimeError('Finish or mute the private headset test before going live or pressing Record.')
@@ -400,6 +404,8 @@ class Studio:
     def power_off(self):
         self._stop.set()
         self.power_epoch += 1
+        self.local_models.stop()
+        self.local_models.last_check = None
         self.presenter_speech.stop(clear=True)
         self.approvals.invalidate()
         self.mic_plan = None

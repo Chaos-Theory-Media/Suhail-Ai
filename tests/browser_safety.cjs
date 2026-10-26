@@ -279,3 +279,22 @@ test('page close requests only Sawti speech mute with the local protection heade
   assert.equal(requests[0].opts.keepalive, true);
   assert.equal(vm.runInContext('S.presenterSpeech.enabled', h.ctx), false);
 });
+
+test('model status remains readable while OFF without starting services or microphones', async () => {
+  const h = await harness();
+  await vm.runInContext("api('/api/models')", h.ctx);
+  assert.equal(h.requests.at(-1).url, '/api/models');
+  assert.equal(h.requests.at(-1).opts.method, 'GET');
+  assert.equal(h.captures(), 0);
+  assert.equal(h.requests.filter(r => r.url === '/api/power/on').length, 0);
+});
+
+test('manual uploads preserve multipart encoding and carry the local write header', async () => {
+  const h = await harness();
+  vm.runInContext('S.on = true', h.ctx);
+  await vm.runInContext("api('/api/knowledge/import', {form: new FormData()})", h.ctx);
+  const request = h.requests.at(-1);
+  assert.equal(request.opts.headers['X-Sawti'], '1');
+  assert.equal(request.opts.headers['Content-Type'], undefined);
+  assert.ok(request.opts.body);
+});

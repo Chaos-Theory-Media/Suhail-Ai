@@ -6,17 +6,18 @@ no inline scripts (Content-Security-Policy); presenters are addressed by id.
 """
 import os
 import threading
+import time
 from pathlib import Path
 
 from flask import Flask, g, jsonify, request, send_file, send_from_directory
 
-from . import VERSION, learning_report, paths, presenter_speech, readiness, store, voice
+from . import VERSION, knowledge, learning_report, models, paths, presenter_speech, readiness, store, voice
 from .agents import audition, chat, learning, levels, post
 
 PORT = int(os.environ.get("SAWTI_PORT", "8765"))
 ALLOWED_HOSTS = {f"127.0.0.1:{PORT}", f"localhost:{PORT}"}
 ALLOWED_ORIGINS = {f"http://{h}" for h in ALLOWED_HOSTS}
-ALWAYS_OPEN = ("/api/app", "/api/power", "/api/power/on", "/api/power/off", "/api/quit", "/api/settings")
+ALWAYS_OPEN = ("/api/app", "/api/power", "/api/power/on", "/api/power/off", "/api/quit", "/api/settings", '/api/models')
 
 SETTING_RULES = {
     "recording_root": str, "loudness_target": float, "true_peak": float, "speech_target": float,
@@ -60,6 +61,7 @@ def create_app(studio):
             # Read-only inference/conversion may take seconds. Do not delay OFF
             # behind it; discard the response if its admission epoch changes.
             if request.path in ('/api/chat', '/api/voice', '/api/audition/inspect',
+                                '/api/models/check', '/api/knowledge/import', '/api/knowledge/ask',
                                 '/api/presenter-speech/speak', '/api/presenter-speech/test'):
                 g.admitted_epoch = epoch
                 g.studio_locked = False
@@ -436,8 +438,10 @@ def create_app(studio):
                                                       and len(t) <= 60 for n, t in names.items()))
                     if not valid:
                         raise ApiError(f'Invalid value for {k}')
-            if k == 'llm_model' and v != 'qwen3:4b':
-                raise ApiError('Only the approved local qwen3:4b model is supported.')
+            if k == 'llm_model' and v not in models.CHAT_MODELS:
+                raise ApiError('Select an approved local Qwen3 model.')
+            if k == 'llm_model' and studio.lifecycle.on and v != studio.settings(k):
+                raise ApiError('Switch Sawti OFF before changing the chat model.', 409)
             if k == 'leveler_enabled' and v and not studio.audio.simulated:
                 raise ApiError('Inline output is not qualified on this Mac. Use capture-only monitoring.')
             if (k in ('leveler_enabled', 'leveler_output', 'recording_root') and studio.live
@@ -499,13 +503,76 @@ def create_app(studio):
         if not f:
             raise ApiError("No audio received.")
         audio = f.read()
-        text = run(lambda: voice.transcribe(audio, request.form.get("language")))
+        text = run(lambda: voice.transcribe(audio, request.form.get("language"), studio=studio))
         try:
             speaker = voice.identify(audio)
         except Exception:
             speaker = dict(name=None)
         res = chat.answer(studio, text) if text else dict(reply="I did not catch that.", actions=[])
         return jsonify(text=text, speaker=speaker, **res)
+
+    @app.get('/api/models')
+    def model_status():
+        return jsonify(**studio.local_models.snapshot(), chat=chat.llm_status(studio))
+
+    @app.post('/api/models/check')
+    def model_check():
+        if body().get('studio_idle') is not True or studio.live:
+            raise ApiError('Confirm production is idle before running model checks.')
+        if not chat.llm_status(studio)['available']:
+            raise ApiError('The selected local chat model is not available.')
+        result = run(lambda: studio.local_models.run('selftest', {}, timeout=180))
+        with studio.local_models.chat_slot() as admitted:
+            if not admitted or g.admitted_epoch != studio.power_epoch:
+                raise ApiError('Studio state changed; model check was cancelled.')
+            probe = run(lambda: chat._ollama({'model': studio.settings('llm_model'), 'stream': False,
+                'think': False, 'messages': [{'role': 'user', 'content': 'Reply with READY.'}],
+                'keep_alive': '2m', 'options': {'num_ctx': 8192, 'num_predict': 16}}, timeout=90))
+        if not chat.clean_ai_reply(probe.get('message', {}).get('content', '')):
+            studio.local_models.last_check = None
+            raise ApiError('Specialists passed but the chat model did not return a usable answer.')
+        with studio.lock:
+            if g.admitted_epoch != studio.power_epoch or not studio.lifecycle.on:
+                raise ApiError('Studio state changed; model check was cancelled.')
+            studio.local_models.last_check = dict(passed=True, time=time.time(), hardware_qualified=False)
+        result['message'] += ' The selected chat model also returned a synthetic test response.'
+        return jsonify(result)
+
+    @app.get('/api/knowledge')
+    def knowledge_list():
+        return jsonify(documents=knowledge.inventory())
+
+    @app.post('/api/knowledge/import')
+    def knowledge_import():
+        if request.form.get('rights_confirmed') != 'true' or request.form.get('studio_idle') != 'true':
+            raise ApiError('Confirm you may use this reference and production is idle.')
+        upload = request.files.get('file')
+        if not upload:
+            raise ApiError('Choose a reference file.')
+        return jsonify(documents=run(lambda: knowledge.import_document(studio, upload.read(), upload.filename,
+                       request.form.get('title'), request.form.get('version'))))
+
+    @app.delete('/api/knowledge/<doc_id>')
+    def knowledge_remove(doc_id):
+        run(lambda: knowledge.remove(doc_id))
+        return jsonify(documents=knowledge.inventory())
+
+    @app.post('/api/knowledge/ask')
+    def knowledge_ask():
+        text = body().get('message')
+        if not isinstance(text, str) or not text.strip() or len(text) > 2000:
+            raise ApiError('Enter a question of at most 2,000 characters.')
+        if studio.live:
+            raise ApiError('Reference inference is reserved for production-idle use until Mac performance is qualified.')
+        references = run(lambda: knowledge.retrieve(studio, text))
+        if not references:
+            raise ApiError('Import relevant reference documents in Settings first.')
+        result = run(lambda: chat.llm_answer(studio, text, references=references))
+        if not result:
+            raise ApiError('The selected local chat model did not answer. Check its download and service status.')
+        result.update(actions=[], references=[dict(number=i, **{k: ref[k] for k in ('title', 'version', 'page')})
+                                             for i, ref in enumerate(references, 1)])
+        return jsonify(result)
 
     @app.get("/api/devices")
     def devices():
