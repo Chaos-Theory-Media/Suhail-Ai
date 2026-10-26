@@ -27,7 +27,7 @@ ENUMS = {
     'mode': {'local', 'zoom'}, 'action': ACTIONS, 'by': {'operator', 'auto'},
     'source': {'operator', 'sawti', 'mic1', 'mic2', 'mic3', 'talkback', 'guests'},
     'reason': {'power-on', 'auto-prep'},
-    'intent': set('guided_recording record_start record_stop pretest clip talkback mixminus guest_level blackhole '
+    'intent': set('identity zoom_guide recording_guide stop_guide guided_recording record_start record_stop pretest clip talkback mixminus guest_level blackhole '
                   'zoom audition session filename save_where master mic_silent levels ready fix awake help'.split()),
     'error_type': {'ValueError', 'RuntimeError', 'OSError', 'ApiError'},
     'operation': {'/api/action', '/api/action/review', '/api/podcast/microphones', '/api/session/prepare',

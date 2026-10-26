@@ -1,4 +1,6 @@
-# Sawti 3.0.6 (صوتي): studio agents for IMI podcasts
+# Sawti 3.0.7 (صوتي): studio agents for IMI podcasts
+
+**Direct chat answers (3.0.7):** Ask “What is your name?”, “How do I use Sawti?” or “How do I record a Zoom interview?” for a direct answer or short numbered guide, in English or Arabic. Educational questions do not run studio checks or propose transport actions. Local AI instructions now answer first without repeating the question or describing their reasoning; explicit reasoning markers are filtered. Actual Qwen response quality still needs confirmation on the Mac.
 
 **Mic selector fix (3.0.6):** Status polling now preserves your pending microphone choice until you explicitly confirm it. Reloading shows the confirmed plan; OFF, mode changes and a new powered session still clear stale choices. Finish recording, quit Sawti, extract this update into a permanent Documents folder and run **INSTALL_SAWTI.command** to update the launcher. Refresh the Sawti browser page after launching the new version.
 

@@ -1,0 +1,10 @@
+{
+  "version": "3.0.7",
+  "python_passed": 157,
+  "targeted_chat_passed": 8,
+  "javascript_passed": 26,
+  "http_passed": 39,
+  "environment": "Linux cloud, isolated simulation and substituted model responses",
+  "actual_qwen_tested": false,
+  "actual_mac_tested": false
+}

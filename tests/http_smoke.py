@@ -67,6 +67,18 @@ def main():
             request('/api/settings', {'recording_root': str(Path(temporary) / 'Recordings')})
             assert request('/api/power/on', {'mode': 'local'})['on'] is True
             assert request('/api/status')['meter']['running'] is False
+            identity = request('/api/chat', {'message': 'What is your name?'})
+            assert identity['intent'] == 'identity' and identity['actions'] == []
+            assert identity['reply'] == 'I’m Sawti (صوتي), your studio assistant.'
+            for prompt, intent in [
+                ('Can you help me with understanding how swati works?', 'help'),
+                ('How can I use this system to do a zoom recroding?', 'zoom_guide'),
+                ('كيف أسجل مقابلة زوم؟', 'zoom_guide'),
+            ]:
+                reply = request('/api/chat', {'message': prompt})
+                assert reply['intent'] == intent and reply['actions'] == []
+                assert '1.' in reply['reply']
+            assert request('/api/power')['mode'] == 'local'
             report = request('/api/learning/report/refresh', {})
             assert report['available'] is True and report['stale'] is False
             assert request('/api/learning/report/download')['application'] == 'Sawti'

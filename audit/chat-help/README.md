@@ -1,0 +1,13 @@
+# Sawti 3.0.7 — direct chat and practical guides
+
+The operator reported a long preamble before a simple identity answer and requested natural help with using Sawti and Zoom recording. The exact model output was not supplied, so its unmarked preamble cannot conclusively be attributed to reasoning markers or a specific Ollama version.
+
+Identity previously had no built-in intent and fell through to Qwen. General how-to questions could hit keyword-based status/transport answers instead of instructions. The update adds direct identity and short numbered guides for the system, Podcast, Zoom and stopping a recording. These run before hardware checks, work without Ollama and have no action buttons. They do not change mode or operate the studio. Existing direct commands retain their confirmation requirements. The microphone-selector fix and learning exports remain included.
+
+Qwen's system instruction now requests an answer in the first sentence, no repeated question or narrated reasoning, and task-relevant limits only. Ordinary replies target four short sentences; how-to answers can use up to six numbered steps. Generation is bounded to 512 tokens with thinking disabled. Separate thinking fields are ignored. Explicit think/analysis blocks and incomplete markers are filtered; arbitrary unmarked prose is not heuristically deleted because it may contain useful or safety-relevant instructions. A reasoning-only or unusable response falls back to a short rephrase request.
+
+Guides describe the current assisted workflow, including matching templates, verified armed tracks, guest return, all studio speakers audible to the guest, echo/talkback checks and explicit recording approval. They do not claim autonomous countdown, verified Audition transport or automatic track configuration. Known recording-state gaps remain unchanged.
+
+Tests cover the operator's examples and Arabic equivalents, short identity without AI/device queries, instructional answers without action execution, continued command/troubleshooting routing, reasoning cleanup and proposal-only AI tools. The live HTTP smoke test asks the same educational questions and checks that Podcast mode does not change. Qwen/Ollama responses are substituted in unit tests; actual model behaviour, voice transcription and Safari still need Mac confirmation.
+
+On the Mac, finish recording, quit Sawti, install 3.0.7 from a new permanent Documents folder, launch and refresh the page. Verify the displayed version, then try “What is your name?”, “Can you help me understand how Sawti works?” and “How can I use this system to do a Zoom recording?”. Repeat in Arabic if needed. For other model-generated answers, report any remaining preamble with the exact question and response so it can be reproduced.

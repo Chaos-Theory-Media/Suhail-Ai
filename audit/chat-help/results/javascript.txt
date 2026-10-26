@@ -1,0 +1,34 @@
+✔ inspection reads controls without activating, typing, clicking or reading programme text (2.400841ms)
+✔ absent Audition is reported without launching it (0.99977ms)
+✔ unexpected bundle ID is rejected before accessing System Events (0.792111ms)
+✔ permission failures remain unavailable rather than declaring success (1.098747ms)
+✔ wide and deep trees remain bounded and explicitly truncated (4.848091ms)
+✔ OFF never asks for microphone access (15.158815ms)
+✔ simulation never asks for a real microphone (3.466844ms)
+✔ OFF releases active browser capture and discards its upload (2.564969ms)
+✔ late permission grant after OFF releases tracks without starting capture (1.843357ms)
+✔ recorder construction failure releases the acquired microphone (2.216473ms)
+✔ server OFF from another client stops this tab after status sync (2.114119ms)
+✔ a delayed status response cannot re-enable UI after local OFF (1.924794ms)
+✔ status polling preserves an unconfirmed microphone choice (2.125097ms)
+✔ loading an existing confirmed plan populates the microphone selector (2.044267ms)
+✔ polling the same confirmed plan preserves a pending replacement choice (1.595659ms)
+✔ a new plan from another tab replaces a stale microphone draft (1.363329ms)
+✔ OFF, mode changes and a missed power cycle clear the microphone draft (3.4407ms)
+✔ confirmation sends the chosen inputs and ignores an older pending status response (2.667112ms)
+✔ OFF during the confirmation dialog prevents a microphone submission (1.117444ms)
+✔ shell quoting preserves spaces, quotes and literal substitutions (6.51756ms)
+✔ cancel before idle authorisation makes no stop or delete call (2.568852ms)
+✔ cancel component selection never removes files (0.900333ms)
+✔ unverified process stops native uninstall before file removal (1.294978ms)
+✔ missing interpreters fail without cleanup (1.667997ms)
+✔ device removal requires its separate native confirmation (2.419329ms)
+✔ reviewed normal flow calls the constrained cleanup engine (1.896362ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 122.2618

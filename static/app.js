@@ -473,9 +473,9 @@ $('#personAdd').addEventListener('click', async () => {
 
 // ------------------------------------------------------------------ chat & voice
 const PROMPTS = {
-  local: ['Check the studio before recording', 'Run the pre-test', 'How are the mic levels?', 'Is Audition running?',
+  local: ['How do I use Sawti?', 'Check the studio before recording', 'Run the pre-test', 'How are the mic levels?', 'Is Audition running?',
     'Prepare and open today\'s session', 'Suggest a filename', 'What if a microphone clips?', 'صوتي، افحص الميكروفونات'],
-  zoom: ['Check the Zoom setup', 'Is BlackHole available?', 'How do I test mix-minus?', 'Check the guest return level',
+  zoom: ['How do I record a Zoom interview?', 'Check the Zoom setup', 'Is BlackHole available?', 'How do I test mix-minus?', 'Check the guest return level',
     'Can the guest hear the talkback?', 'Is Audition running?', 'Run the pre-test', 'صوتي، افحص إعدادات زوم'],
 };
 function renderPrompts() {
@@ -573,7 +573,7 @@ async function boot() {
     if (S.voice.identify) loadPeople();
     if (a.on) refreshAll();
   } catch (e) { toast(e.message, 'fail', 15000); }
-  addMsg('Sawti', 'Hello! Switch me ON, then I can check the studio, fix what I can, run the pre-test, open the Audition session and watch levels during the show.');
+  addMsg('Sawti', 'I’m Sawti, your studio assistant. Switch ON to check the studio or ask how to use it.');
   setInterval(() => { if (S.on) pollStatus(); }, 1000);
   setInterval(() => { if (S.on) refreshChecks(); }, 6000);
   setInterval(() => { if (S.on && S.tab === 'pretest' && S.pretestActive) pollPretest(); }, 1000);

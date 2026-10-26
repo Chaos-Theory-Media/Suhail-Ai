@@ -1,0 +1,13 @@
+test_ai_tools_can_propose_but_never_execute_recording (test_chat.ChatRoutingTests.test_ai_tools_can_propose_but_never_execute_recording) ... ok
+test_conditional_recording_never_offers_transport (test_chat.ChatRoutingTests.test_conditional_recording_never_offers_transport) ... ok
+test_every_suggested_prompt_routes_correctly (test_chat.ChatRoutingTests.test_every_suggested_prompt_routes_correctly) ... ok
+test_explicit_reasoning_blocks_removed_but_operating_advice_preserved (test_chat.ChatRoutingTests.test_explicit_reasoning_blocks_removed_but_operating_advice_preserved) ... ok
+test_guides_teach_without_offering_transport_or_switching_mode (test_chat.ChatRoutingTests.test_guides_teach_without_offering_transport_or_switching_mode) ... ok
+test_identity_is_one_direct_sentence_without_hardware_or_ai_queries (test_chat.ChatRoutingTests.test_identity_is_one_direct_sentence_without_hardware_or_ai_queries) ... ok
+test_model_request_disables_thinking_and_does_not_display_separate_reasoning (test_chat.ChatRoutingTests.test_model_request_disables_thinking_and_does_not_display_separate_reasoning) ... ok
+test_wake_word_removed (test_chat.ChatRoutingTests.test_wake_word_removed) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.028s
+
+OK

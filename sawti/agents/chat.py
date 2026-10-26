@@ -12,7 +12,7 @@ import time
 
 from ..lifecycle import OLLAMA_HOST, OLLAMA_PORT
 
-WAKE = re.compile(r"^\s*(hey\s+|hi\s+|ok\s+)?(sawti|sawty|صوتي)\s*[,،:!.\-]*\s*", re.I)
+WAKE = re.compile(r"^\s*(hey\s+|hi\s+|ok\s+)?(sawti|sawty|swati|صوتي)\b\s*[,،:!.\-]*\s*", re.I)
 
 
 def normalise(text):
@@ -56,6 +56,22 @@ INTENTS = [
 
 def detect(text):
     t = normalise(text)
+    if _has(t, r"\bwhat(?: is|'s|’s) your name\b", r"\bwho are you\b", r"ما (?:هو )?اسمك", r"من أنت", r"من انت"):
+        return 'identity'
+    howto = _has(t, r"\bhow\s+(can|do|does|to|should|would|could|will)\b",
+                 r"\bhow (sawti|swati|this system|the app) works\b",
+                 r"\b(walk|guide|talk) me through\b", r"\bexplain\b",
+                 r"\bcan you (?:please )?(help|show|teach|guide)\b", r"كيف", r"اشرح", r"ساعدني")
+    if howto and _has(t, r"\b(stop|end|pause|finish) (?:the |my |a )?(?:zoom |audition |podcast )?record",
+                     r"(?:أوقف|اوقف|إيقاف|ايقاف|أنهي|انهاء|إنهاء) التسجيل"):
+        return 'stop_guide'
+    fault_question = _has(t, r"\b(clip\w*|distort\w*|silent|echo|gain)\b", r"تشويش", r"صدى", r"صامت")
+    if howto and not fault_question and _has(t, r"\bzoom\b", r"زوم"):
+        return 'zoom_guide'
+    if howto and not fault_question and _has(t, r"\b(podcast|recording|recroding|record)\b", r"بودكاست", r"التسجيل"):
+        return 'recording_guide'
+    if howto and not fault_question and _has(t, r"\b(sawti|swati|system|app|works)\b", r"صوتي", r"النظام"):
+        return 'help'
     # A conditional sequence must not collapse into the final transport command.
     # Until that workflow is implemented, explain the gap and offer pre-test only.
     if (_has(t, *RECORD_START_PATTERNS) and
@@ -76,20 +92,80 @@ def _summ(findings, sev=("fail", "warn")):
     return [f for f in findings if f["severity"] in sev]
 
 
+def guide_reply(intent, ar, mode):
+    if intent == 'identity':
+        return 'أنا صوتي، مساعدك في الاستوديو.' if ar else 'I’m Sawti (صوتي), your studio assistant.'
+    if intent == 'stop_guide':
+        return (
+            'لإيقاف التسجيل:\n1. تحقق من الجلسة المسجلة في أوديشن.\n'
+            '2. اضغط Stop في أوديشن، أو راجع أمر Stop في صوتي ووافق صراحةً على إيقاف التسجيل.\n'
+            '3. تأكد أن التسجيل توقف واحفظ الجلسة. إذا كان زوم يسجل أيضاً فأوقف تسجيله من زوم.\n'
+            'إطفاء صوتي لا يوقف تسجيل أوديشن.' if ar else
+            'To stop recording:\n1. Verify the recording session in Audition.\n'
+            '2. Use Stop in Audition, or review Sawti’s Stop command and explicitly approve interrupting the recording.\n'
+            '3. Verify recording has stopped and save the session. Stop any separate Zoom recording in Zoom itself.\n'
+            'Switching Sawti OFF does not stop Audition recording.')
+    if intent == 'help':
+        return (
+            'صوتي يساعدك في تجهيز الاستوديو واختبار الصوت ومراقبته.\n'
+            '1. شغّل صوتي واختر Podcast أو Zoom Show.\n'
+            '2. في Prepare أكمل التجهيز؛ للبودكاست أكّد الميكروفونات: 1 للمقدّم، و4 للتوك باك فقط.\n'
+            '3. جهّز جلسة أوديشن من القالب المناسب وتحقق من المدخلات والمسارات المسلحة.\n'
+            '4. نفّذ Pre-test ثم وافق على بدء التسجيل بعد نجاح الفحص.\n'
+            '5. راقب المستويات في Live، واستخدم After the show للمعالجة بعد توقف التسجيل.' if ar else
+            'Sawti helps you prepare, sound-check and monitor your studio.\n'
+            '1. Switch ON and choose Podcast or Zoom Show.\n'
+            '2. Follow Prepare. For Podcast, confirm 1–3 programme mics; Mic 1 is presenter, input 4 is talkback only.\n'
+            '3. Prepare an Audition session from the matching template and verify its inputs and armed tracks.\n'
+            '4. Run Pre-test, then explicitly authorise recording after the checks pass.\n'
+            '5. Monitor in Live; use After the show for processing once recording has stopped.')
+    if intent == 'zoom_guide' or (intent == 'recording_guide' and mode == 'zoom'):
+        return (
+            'لتسجيل مقابلة زوم:\n'
+            '1. عندما يكون التسجيل متوقفاً، اختر Zoom Show وافحص Prepare. راجع أي تغيير في الأجهزة قبل الموافقة عليه.\n'
+            '2. في إعدادات صوت Zoom اختر Scarlett 18i8 للميكروفون وSawti Zoom Speaker للسماعة بعد التحقق من التوجيه.\n'
+            '3. افتح جلسة أوديشن من قالب Zoom؛ تحقق من مسارات الميكروفونات ومسار ضيف زوم الستيريو عبر Sawti Show Input.\n'
+            '4. تأكد أن الضيف يسمع كل متحدث، واختبر عودة صوته وغياب الصدى وخصوصية التوك باك؛ لا تسجّل المدخل 4.\n'
+            '5. بعد نجاح الاختبار تحقق من الجلسة والمسارات المسلحة ثم وافق على التسجيل في أوديشن وتأكد أن الصوت يُكتب فعلياً.' if ar else
+            'To record a Zoom interview:\n'
+            '1. While recording is idle, choose Zoom Show and check Prepare. Review any device changes before approving them.\n'
+            '2. In Zoom Audio settings, use Scarlett 18i8 as Microphone and Sawti Zoom Speaker as Speaker after verifying the routing.\n'
+            '3. Open an Audition session from your Zoom template. Verify its mic tracks and stereo guest-return track using Sawti Show Input.\n'
+            '4. Run Pre-test with your guest. Confirm they hear every studio speaker; check guest return, no echo and talkback privacy. Input 4 must stay out of recording.\n'
+            '5. Verify the active session and armed tracks, authorise recording in Audition, and confirm audio is actually being written.')
+    if intent == 'recording_guide':
+        return (
+            'لتسجيل بودكاست:\n'
+            '1. شغّل صوتي واختر Podcast.\n'
+            '2. في Prepare أكّد عدد الميكروفونات من 1 إلى 3؛ الميكروفون 1 للمقدّم و4 للتوك باك فقط.\n'
+            '3. جهّز وافتح جلسة أوديشن من القالب المناسب وتحقق من المدخلات والمسارات المسلحة.\n'
+            '4. نفّذ Pre-test واضبط الكسب يدوياً حسب الإرشادات.\n'
+            '5. بعد نجاح الفحص وافق على التسجيل وتأكد في أوديشن من كتابة الصوت على كل مسار مطلوب.' if ar else
+            'To record a podcast:\n'
+            '1. Switch ON and choose Podcast.\n'
+            '2. In Prepare, confirm 1–3 programme mics. Mic 1 is presenter; input 4 is talkback only.\n'
+            '3. Prepare and open the matching Audition template; verify the inputs and armed tracks.\n'
+            '4. Run Pre-test and adjust the physical gain knobs as advised.\n'
+            '5. After the checks pass, authorise recording and verify in Audition that every intended track is writing audio.')
+    return None
+
+
 def answer(studio, text):
     """Returns dict(reply, source, actions=[{action,label}], intent)."""
     intent = detect(text)
     ar = arabic(text)
+    guide = guide_reply(intent, ar, studio.mode)
+    if guide is not None:
+        studio.learn('chat_intent', intent=intent)
+        return dict(intent=intent, source='rule', reply=guide, actions=[])
     if intent is None:
         llm = llm_answer(studio, text)
         if llm:
             return llm
         return dict(intent=None, source="rule", actions=[], reply=(
-            "لم أفهم تماماً. جرّب: «افحص الاستوديو»، «الميكروفونات»، «هل أوديشن يعمل؟»، «إعدادات زوم»."
+            "لم أتمكن من الإجابة. هل يمكنك إعادة صياغة السؤال؟ للمساعدة اكتب: «كيف أستخدم صوتي؟»."
             if ar else
-            "I can check the studio, coach mic levels, run the pre-test, prepare and open the Audition session, "
-            "press Record, check Zoom/BlackHole and master the episode. Try: 'check the studio', 'run the pre-test', "
-            "'how are the levels?'"))
+            "I couldn't answer that. Could you rephrase it? For setup help, ask 'How do I use Sawti?'"))
     findings = studio.check_all()
     issues = _summ(findings)
     acts = lambda fs: [dict(action=f["action"], label=f["action_label"]) for f in fs if f.get("action")][:4]
@@ -260,10 +336,30 @@ TOOLS = [
 ]
 
 SYSTEM = ("You are Sawti, the studio assistant for IMI podcasts on a Mac Studio with a Focusrite Scarlett 18i8, "
-          "Adobe Audition, Zoom and BlackHole. Be brief and practical (max 4 sentences). Use the tools for facts; "
+          "Adobe Audition, Zoom and BlackHole. Answer the question directly in the first sentence. "
+          "Do not repeat or summarise the question, narrate your reasoning, or preface the answer with a list of "
+          "capabilities or limitations. Mention a limitation only when it affects the requested task. "
+          "For 'What is your name?' say 'I'm Sawti, your studio assistant.' "
+          "Use at most four short sentences for ordinary questions; for how-to requests, give up to six short numbered steps. "
+          "The current app assists with saved Audition templates, operator-led sound checks and approved transport shortcuts. "
+          "It does not verify Audition transport or active track inputs, provide hands-free Mic 1 listening, or run an autonomous countdown. "
+          "Podcast uses 1–3 confirmed programme mics: Mic 1 is presenter, input 4 is talkback and must be excluded from recording. "
+          "Use the tools for live facts; "
           "never invent device states. You cannot turn physical gain knobs or press 48V buttons — tell the operator "
           "exactly which knob to turn. To change anything, use propose_action so the operator can confirm. "
           "Answer in the user's language (Arabic or English).")
+
+
+def clean_ai_reply(content):
+    if not isinstance(content, str):
+        return ''
+    # Remove only explicitly marked internal text, never ordinary safety advice.
+    content = re.sub(r'<(think|analysis)\b[^>]*>.*?</\1\s*>', '', content, flags=re.S | re.I)
+    # Some model/template combinations omit the opening marker but retain the
+    # closing marker. Only the text after that explicit boundary is an answer.
+    content = re.split(r'</(?:think|analysis)\s*>', content, flags=re.I)[-1]
+    content = re.sub(r'<(?:think|analysis)\b[^>]*>.*$', '', content, flags=re.S | re.I)
+    return content.strip()
 
 
 def _ollama(payload, timeout=40):
@@ -301,12 +397,12 @@ def llm_answer(studio, text):
             if not studio.lifecycle.on or time.monotonic() >= deadline:
                 return None
             res = _ollama({"model": status["model"], "messages": messages, "tools": TOOLS, "stream": False,
-                           "think": False, "options": {"temperature": 0.2}},
+                           "think": False, "options": {"temperature": 0.2, "num_predict": 512}},
                           timeout=max(0.1, deadline - time.monotonic()))
             msg = res.get("message", {})
             calls = msg.get("tool_calls") or []
             if not calls:
-                content = re.sub(r"<think>.*?</think>", "", msg.get("content", ""), flags=re.S).strip()
+                content = clean_ai_reply(msg.get('content', ''))
                 if not content:
                     return None
                 return dict(intent=None, source="ai", reply=content, actions=proposed)

@@ -1,3 +1,10 @@
+# 3.0.7 Direct conversational help in English and Arabic
+
+- Add concise identity and practical system/Podcast/Zoom/Stop guides. Common educational questions work without Ollama and do not query hardware, switch modes or propose transport commands. Accept the common “Swati” spelling and the reported “recroding” typo in help questions.
+- Distinguish how-to recording questions from direct Record/Stop commands; preserve current studio-check and troubleshooting intents.
+- Instruct Qwen to answer first without paraphrasing the question, listing unrelated capabilities/limits or narrating reasoning. Keep thinking disabled, bound generation and remove explicitly marked reasoning blocks, including partial markers. Ordinary operating advice remains intact.
+- Include current manual verification requirements in built-in guides and the AI prompt. Retain all operator approvals and proposal-only AI tools. Add help examples to the chat prompts and new intent IDs to the redacted learning report.
+
 # 3.0.6 Preserve microphone selection during status updates
 
 - Fix the one-second status refresh clearing unconfirmed microphone choices. Pending choices now survive normal polling, including edits to an existing confirmed plan.
