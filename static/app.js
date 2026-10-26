@@ -34,7 +34,8 @@ async function api(path, opts = {}) {
 }
 
 const S = { on: false, mode: 'local', live: false, tab: 'prepare', simulated: false, voice: {}, seenNotices: 0,
-  pretestActive: false, jobs: {}, settings: null, profiles: null, generation: 0 };
+  pretestActive: false, jobs: {}, settings: null, profiles: null, generation: 0,
+  micContext: null, micPlanId: null };
 
 function toast(message, level = 'info', ms = 6000) {
   const t = h('div', { class: `toast ${level}`, text: message });
@@ -77,6 +78,17 @@ async function runAction(action) {
 }
 
 // ------------------------------------------------------------------ power, mode, live
+function renderMicrophones(plan, context) {
+  const planId = plan ? plan.id : null;
+  // Polling must not erase an edit awaiting explicit confirmation. Hydrate only
+  // when loading a session or observing a genuinely different confirmed plan.
+  if (S.micContext !== context || S.micPlanId !== planId)
+    $('#podcastMics').value = plan ? plan.inputs.join(',') : '';
+  S.micContext = context; S.micPlanId = planId;
+  $('#podcastMicStatus').textContent = plan ?
+    `Confirmed programme inputs: ${plan.inputs.join(', ')}. Mic 1: presenter. Input 4: talkback only.` :
+    'Confirm microphones before preparing the session or starting pre-test.';
+}
 function renderPower(st) {
   if (S.on !== st.on) S.generation++;
   if (!st.on) stopVoice();
@@ -92,11 +104,8 @@ function renderPower(st) {
   $('#aiState').textContent = st.ollama_detail || '';
   $('#recordingState').textContent = 'Audition recording state: unknown. LIVE is an operator marker.';
   $('#podcastMicSetup').hidden = st.mode !== 'local';
-  const plan = st.microphone_plan;
-  $('#podcastMicStatus').textContent = plan ?
-    `Confirmed programme inputs: ${plan.inputs.join(', ')}. Mic 1: presenter. Input 4: talkback only.` :
-    'Confirm microphones before preparing the session or starting pre-test.';
-  if (!plan) $('#podcastMics').value = '';
+  renderMicrophones(st.on && st.mode === 'local' ? st.microphone_plan : null,
+    `${st.on}:${st.mode}:${st.power_epoch || 0}`);
   for (const n of st.notices || []) if (n.id > S.seenNotices) { S.seenNotices = n.id; toast(n.message, n.level, 9000); }
 }
 $('#powerBtn').addEventListener('click', async () => {
@@ -174,11 +183,17 @@ $('#openFocusrite').addEventListener('click', () => runAction('open_focusrite'))
 $('#openAuditionApp').addEventListener('click', () => runAction('open_audition'));
 $('#confirmPodcastMics').addEventListener('click', async () => {
   const value = $('#podcastMics').value;
+  const generation = S.generation, context = S.micContext;
   if (!value) { toast('Choose one, two or three programme microphones first.', 'warn'); return; }
   if (!(await ask('Confirm these programme microphones and that all recording is idle? This clears previous Sawti tests and stops its meters. Audition tracks and Focusrite routing still need verification.'))) return;
+  if (!S.on || generation !== S.generation || context !== S.micContext) return;
   const r = await guard(() => api('/api/podcast/microphones', {body: {
     inputs: value.split(',').map(Number), studio_idle: true}}), x => x.message);
-  if (r) { pollStatus(); refreshAudition(); refreshChecks(); pollPretest(); }
+  if (r && S.on && generation === S.generation && context === S.micContext) {
+    S.generation++; // discard status responses admitted before this confirmation
+    renderMicrophones(r.plan, context);
+    pollStatus(); refreshAudition(); refreshChecks(); pollPretest();
+  }
 });
 for (const [id, path, body] of [
   ['autonomyReadiness', '/api/readiness', undefined],

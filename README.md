@@ -1,4 +1,6 @@
-# Sawti 3.0.5 (صوتي): studio agents for IMI podcasts
+# Sawti 3.0.6 (صوتي): studio agents for IMI podcasts
+
+**Mic selector fix (3.0.6):** Status polling now preserves your pending microphone choice until you explicitly confirm it. Reloading shows the confirmed plan; OFF, mode changes and a new powered session still clear stale choices. Finish recording, quit Sawti, extract this update into a permanent Documents folder and run **INSTALL_SAWTI.command** to update the launcher. Refresh the Sawti browser page after launching the new version.
 
 **Share learning for upgrades (3.0.5):** Sawti automatically maintains `Sawti-Learnings.json` in its `learning_reports` folder. Use **Learning → Open learning folder** or **Download learning report** to copy it out and upload it here. It contains all retained structured events (180-day working history), with private fields removed. No audio, voice signatures, names, chat text or private paths are exported. Nothing uploads automatically. See [learning report details](audit/learning-report/README.md).
 

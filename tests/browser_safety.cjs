@@ -125,3 +125,87 @@ test('a delayed status response cannot re-enable UI after local OFF', async () =
   await pending;
   assert.equal(vm.runInContext('S.on', h.ctx), false);
 });
+
+test('status polling preserves an unconfirmed microphone choice', async () => {
+  const h = await harness();
+  vm.runInContext("renderPower({on:true, mode:'local', power_epoch:0, notices:[], microphone_plan:null})", h.ctx);
+  h.nodes.get('#podcastMics').value = '1,3';
+  for (let i = 0; i < 3; i++)
+    vm.runInContext("renderPower({on:true, mode:'local', power_epoch:0, notices:[], microphone_plan:null})", h.ctx);
+  assert.equal(h.nodes.get('#podcastMics').value, '1,3');
+});
+
+test('loading an existing confirmed plan populates the microphone selector', async () => {
+  const h = await harness();
+  vm.runInContext("renderPower({on:true, mode:'local', notices:[], microphone_plan:{id:'confirmed', inputs:[1,2]}})", h.ctx);
+  assert.equal(h.nodes.get('#podcastMics').value, '1,2');
+});
+
+test('polling the same confirmed plan preserves a pending replacement choice', async () => {
+  const h = await harness();
+  const render = "renderPower({on:true, mode:'local', notices:[], microphone_plan:{id:'confirmed', inputs:[1,2]}})";
+  vm.runInContext(render, h.ctx);
+  h.nodes.get('#podcastMics').value = '1';
+  vm.runInContext(render, h.ctx);
+  assert.equal(h.nodes.get('#podcastMics').value, '1');
+});
+
+test('a new plan from another tab replaces a stale microphone draft', async () => {
+  const h = await harness();
+  vm.runInContext("renderPower({on:true, mode:'local', notices:[], microphone_plan:{id:'old', inputs:[1,2]}})", h.ctx);
+  h.nodes.get('#podcastMics').value = '1';
+  vm.runInContext("renderPower({on:true, mode:'local', notices:[], microphone_plan:{id:'new', inputs:[1,3]}})", h.ctx);
+  assert.equal(h.nodes.get('#podcastMics').value, '1,3');
+});
+
+test('OFF, mode changes and a missed power cycle clear the microphone draft', async () => {
+  for (const transition of [
+    "{on:false, mode:'local', power_epoch:1, notices:[]}",
+    "{on:true, mode:'zoom', power_epoch:0, notices:[]}",
+    "{on:true, mode:'local', power_epoch:1, notices:[]}"
+  ]) {
+    const h = await harness();
+    vm.runInContext("renderPower({on:true, mode:'local', power_epoch:0, notices:[]})", h.ctx);
+    h.nodes.get('#podcastMics').value = '1,2,3';
+    vm.runInContext(`renderPower(${transition})`, h.ctx);
+    assert.equal(h.nodes.get('#podcastMics').value, '');
+  }
+});
+
+test('confirmation sends the chosen inputs and ignores an older pending status response', async () => {
+  const h = await harness();
+  vm.runInContext("renderPower({on:true, mode:'local', power_epoch:0, notices:[]})", h.ctx);
+  h.nodes.get('#podcastMics').value = '1,3';
+  let replyStatus;
+  const posts = [];
+  h.ctx.fetch = async (url, opts) => {
+    if (url === '/api/status') return new Promise(resolve => {replyStatus = resolve;});
+    if (url === '/api/podcast/microphones') {
+      posts.push(JSON.parse(opts.body));
+      return {ok: true, json: async () => ({plan: {id: 'accepted', inputs: [1,3]}, message: 'Confirmed'})};
+    }
+    return {ok: true, json: async () => ({findings: [], steps: [], active: false})};
+  };
+  const oldPoll = vm.runInContext('pollStatus()', h.ctx);
+  const confirmation = h.nodes.get('#confirmPodcastMics').listeners.click();
+  h.nodes.get('#confirmYes').onclick();
+  await confirmation;
+  replyStatus({ok:true, json:async () => ({studio:{on:true, mode:'local', power_epoch:0, notices:[]}, meter:{running:false}})});
+  await oldPoll;
+  assert.deepEqual(posts, [{inputs:[1,3], studio_idle:true}]);
+  assert.equal(h.nodes.get('#podcastMics').value, '1,3');
+  assert.equal(vm.runInContext('S.micPlanId', h.ctx), 'accepted');
+});
+
+test('OFF during the confirmation dialog prevents a microphone submission', async () => {
+  const h = await harness();
+  vm.runInContext("renderPower({on:true, mode:'local', power_epoch:0, notices:[]})", h.ctx);
+  h.nodes.get('#podcastMics').value = '1';
+  const posts = [];
+  h.ctx.fetch = async url => {posts.push(url); return {ok:true, json:async () => ({})};};
+  const confirmation = h.nodes.get('#confirmPodcastMics').listeners.click();
+  vm.runInContext("renderPower({on:false, mode:'local', power_epoch:1, notices:[]})", h.ctx);
+  h.nodes.get('#confirmYes').onclick();
+  await confirmation;
+  assert.deepEqual(posts, []);
+});

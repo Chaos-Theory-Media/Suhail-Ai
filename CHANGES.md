@@ -1,3 +1,10 @@
+# 3.0.6 Preserve microphone selection during status updates
+
+- Fix the one-second status refresh clearing unconfirmed microphone choices. Pending choices now survive normal polling, including edits to an existing confirmed plan.
+- Populate the selector from an existing confirmed plan on reload and synchronise a new confirmed plan from another tab. OFF, mode and power-session changes invalidate stale drafts.
+- After confirmation, immediately display the accepted plan and discard older pending status responses. OFF or mode change during the confirmation dialog prevents a stale submission. Selection still needs explicit confirmation and never changes routing or Audition tracks.
+- Regression tests execute the actual UI script with DOM/network substitutes; real Safari validation remains necessary.
+
 # 3.0.5 Local learning report for upgrade feedback
 
 - Automatically refresh a redacted JSON report after each saved learning event and on learning reset. Export all retained events, rather than the default 2,000-row query window. New events include the Sawti version.
