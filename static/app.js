@@ -386,7 +386,22 @@ async function refreshLearning() {
       const x = await guard(() => api('/api/learning/autofix', { body: { action, enabled: false } })); if (x) refreshLearning(); } })));
   $('#learnBox').replaceChildren(...kids);
   $('#autoPrep').checked = !!r.auto_prepare;
+  if (r.report) $('#learningReportStatus').textContent =
+    `${r.report.folder}/${r.report.filename} · automatic updates · ${r.report.retention_days}-day working history` +
+    (r.report.error ? ` · Report update failed (${r.report.error}); download will retry.` : '');
 }
+$('#openLearningFolder').addEventListener('click', () => guard(async () => {
+  const r = await api('/api/learning/report/folder', {body: {}});
+  if (!r.opened) toast('Simulation folder: ' + r.folder);
+}));
+$('#downloadLearningReport').addEventListener('click', async () => {
+  const generation = S.generation;
+  const r = await guard(() => api('/api/learning/report/refresh', {body: {}}));
+  if (!r || !S.on || generation !== S.generation) return;
+  const link = h('a', {href: '/api/learning/report/download', download: 'Sawti-Learnings.json'});
+  document.body.append(link); link.click(); link.remove();
+  refreshLearning();
+});
 $('#learnScan').addEventListener('click', async () => {
   const r = await guard(() => api('/api/learning/scan', { body: { folder: $('#learnFolder').value.trim() } }),
     (x) => `Learned from ${x.files} files${x.stopped_early ? ' (stopped early — choose a narrower folder)' : ''}.`);

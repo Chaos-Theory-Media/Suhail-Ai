@@ -379,6 +379,7 @@ class Studio:
         if mode:
             self.set_mode(mode)
         self.lifecycle.power_on()
+        self.learn('sawti_started', simulated=self.audio.simulated)
         done = self.run_autofixes("power-on")
         if done:
             self.notify("Done in advance: " + " ".join(done), "info")

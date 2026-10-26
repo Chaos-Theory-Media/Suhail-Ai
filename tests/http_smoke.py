@@ -67,6 +67,10 @@ def main():
             request('/api/settings', {'recording_root': str(Path(temporary) / 'Recordings')})
             assert request('/api/power/on', {'mode': 'local'})['on'] is True
             assert request('/api/status')['meter']['running'] is False
+            report = request('/api/learning/report/refresh', {})
+            assert report['available'] is True and report['stale'] is False
+            assert request('/api/learning/report/download')['application'] == 'Sawti'
+            assert request('/api/learning/report/folder', {})['opened'] is False
             request('/api/pretest/start', {}, expect=422)
             request('/api/podcast/microphones', {'inputs': [1, 4], 'studio_idle': True}, expect=422)
             plan = request('/api/podcast/microphones', {'inputs': [1, 3], 'studio_idle': True})['plan']

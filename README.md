@@ -1,4 +1,6 @@
-# Sawti 3.0.4 (صوتي): studio agents for IMI podcasts
+# Sawti 3.0.5 (صوتي): studio agents for IMI podcasts
+
+**Share learning for upgrades (3.0.5):** Sawti automatically maintains `Sawti-Learnings.json` in its `learning_reports` folder. Use **Learning → Open learning folder** or **Download learning report** to copy it out and upload it here. It contains all retained structured events (180-day working history), with private fields removed. No audio, voice signatures, names, chat text or private paths are exported. Nothing uploads automatically. See [learning report details](audit/learning-report/README.md).
 
 **Podcast commissioning (3.0.4):** Prepare asks which 1–3 programme mics are in use. Mic 1 is always presenter; input 4 is talkback only. Confirm while idle, then save/use a matching Audition template for that arrangement. Pre-test covers the selected programme mics and talkback. This does not automatically configure or verify Audition inputs. New in-app readiness and read-only control inspection report the remaining hands-free recording gaps. See [update and Mac qualification steps](audit/commissioning/README.md).
 

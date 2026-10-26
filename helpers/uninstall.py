@@ -328,8 +328,22 @@ class Uninstaller:
             known.update(('runtime', 'models', 'venv', 'bin', 'cache', 'run', 'install.log', 'installation.json'))
         if 'data' in components:
             known.update(('sawti.sqlite3', 'sawti.sqlite3-wal', 'sawti.sqlite3-shm', 'sawti-before-v3.sqlite3',
-                          'templates', 'simulation'))
+                          'templates', 'simulation', 'learning_reports'))
         for name in sorted(known):
+            if name == 'learning_reports':
+                folder = self.support / name
+                if folder.is_symlink() or (folder.exists() and not folder.is_dir()):
+                    kept.append(dict(path=str(folder), reason='report folder ownership unverified'))
+                    continue
+                if folder.is_dir():
+                    for child in folder.iterdir():
+                        if child.name == 'Sawti-Learnings.json' and (child.is_file() or child.is_symlink()):
+                            remove, preserve = self.partition(child, roots, personal=True)
+                            candidates += remove
+                            kept += preserve
+                        else:
+                            kept.append(dict(path=str(child), reason='unknown file in learning report folder'))
+                continue
             remove, preserve = self.partition(self.support / name, roots, personal='data' in components)
             candidates += remove
             kept += preserve

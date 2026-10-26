@@ -8,9 +8,9 @@ import os
 import threading
 from pathlib import Path
 
-from flask import Flask, g, jsonify, request, send_from_directory
+from flask import Flask, g, jsonify, request, send_file, send_from_directory
 
-from . import VERSION, paths, readiness, store, voice
+from . import VERSION, learning_report, paths, readiness, store, voice
 from .agents import audition, chat, learning, levels, post
 
 PORT = int(os.environ.get("SAWTI_PORT", "8765"))
@@ -87,6 +87,8 @@ def create_app(studio):
 
     @app.errorhandler(ApiError)
     def api_error(e):
+        studio.learn('operation_failed', operation=request.url_rule.rule if request.url_rule else None,
+                     error_type='ApiError', error_status=e.status)
         return jsonify(error=str(e)), e.status
 
     def run(fn):
@@ -101,6 +103,9 @@ def create_app(studio):
     @app.errorhandler(RuntimeError)
     @app.errorhandler(OSError)
     def operation_error(exc):
+        studio.learn('operation_failed', operation=request.url_rule.rule if request.url_rule else None,
+                     error_type=next(t.__name__ for t in (ValueError, RuntimeError, OSError) if isinstance(exc, t)),
+                     error_status=422)
         return jsonify(error=str(exc)), 422
 
     # ------------------------------------------------------------ pages
@@ -296,7 +301,34 @@ def create_app(studio):
     # ------------------------------------------------------------ learning
     @app.get("/api/learning")
     def learning_info():
-        return jsonify(learning.insights(studio))
+        return jsonify(**learning.insights(studio), report=learning_report.status())
+
+    @app.post('/api/learning/report/refresh')
+    def learning_report_refresh():
+        run(learning_report.refresh)
+        return jsonify(learning_report.status())
+
+    @app.get('/api/learning/report/download')
+    def learning_report_download():
+        state = learning_report.status()
+        if state['stale'] or not state['available']:
+            raise ApiError('Refresh the learning report before downloading it.', 409)
+        return send_file(learning_report.report_path(), as_attachment=True,
+                         download_name='Sawti-Learnings.json', mimetype='application/json')
+
+    @app.post('/api/learning/report/folder')
+    def learning_report_folder():
+        if studio.audio.simulated:
+            return jsonify(folder=str(learning_report.folder()), opened=False)
+        import subprocess
+        import sys
+        if sys.platform != 'darwin':
+            raise ApiError('Open folder is available on the Mac. Use Download report instead.')
+        target = run(learning_report.folder)
+        result = subprocess.run(['/usr/bin/open', str(target)], capture_output=True, timeout=10)
+        if result.returncode:
+            raise ApiError('Finder could not open the learning report folder.')
+        return jsonify(folder=str(target), opened=True)
 
     @app.post("/api/learning/scan")
     def learning_scan():

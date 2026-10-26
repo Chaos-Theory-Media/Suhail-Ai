@@ -1,0 +1,11 @@
+{
+  "version": "3.0.5",
+  "environment": "Linux cloud; isolated data and simulated audio",
+  "python_suite_passed": 152,
+  "final_uninstall_checks_passed": 31,
+  "javascript_checks_passed": 19,
+  "http_checks_passed": 34,
+  "shell_syntax": "passed",
+  "actual_mac_finder_and_browser_tested": false,
+  "automatic_upload": false
+}

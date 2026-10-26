@@ -1,3 +1,11 @@
+# 3.0.5 Local learning report for upgrade feedback
+
+- Automatically refresh a redacted JSON report after each saved learning event and on learning reset. Export all retained events, rather than the default 2,000-row query window. New events include the Sawti version.
+- Add Learning buttons to open the dedicated local folder in Finder or download a fresh copy. No automatic upload, network transfer, audio capture or routing change is introduced.
+- Export closed-set event tokens and numeric measurements; exclude names, paths, filenames, voice signatures, chat text and raw error messages. Include structured API failure categories for QA feedback.
+- Write the report atomically with private permissions. A failed report write preserves SQLite history, marks the report stale and blocks stale downloads. A failed reset explicitly warns that an old report may remain.
+- Treat the report as optional personal data during uninstall; preserve unrelated files in its folder. Independently copied reports are untouched.
+
 # 3.0.4 Podcast commissioning and autonomy evidence
 
 - Confirm one to three programme microphones in Prepare. Mic 1 is presenter; input 4 is talkback only. Selected inputs drive the Podcast profile and pre-test. Zoom retains its separate existing profile.

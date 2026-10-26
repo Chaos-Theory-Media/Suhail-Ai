@@ -319,6 +319,19 @@ class UninstallTests(unittest.TestCase):
         self.execute()
         self.assertEqual(path.read_text(), 'production session')
 
+    def test_learning_report_is_optional_data_and_unknown_files_are_preserved(self):
+        folder = self.support / 'learning_reports'
+        folder.mkdir()
+        report = folder / 'Sawti-Learnings.json'
+        report.write_text('{"application":"Sawti"}')
+        notes = folder / 'operator-notes.txt'
+        notes.write_text('keep these notes')
+        self.execute(('runtime',))
+        self.assertTrue(report.exists())
+        self.execute(('data',))
+        self.assertFalse(report.exists())
+        self.assertEqual(notes.read_text(), 'keep these notes')
+
     def test_corrupt_process_metadata_does_not_grant_kill_permission(self):
         clean.save_json(self.support / 'run/server.json', {'pid': 123, 'identity': ['corrupt']})
         self.assertEqual(self.engine.records(), [])

@@ -9,7 +9,7 @@ import threading
 import time
 from contextlib import closing
 
-from . import paths
+from . import VERSION, paths
 
 RETENTION_DAYS = 180
 _init_lock = threading.Lock()
@@ -112,9 +112,12 @@ def all_settings():
 
 # ---------- events ----------
 def log(kind, **data):
+    data['sawti_version'] = VERSION
     with closing(connect()) as db, db:
         db.execute("INSERT INTO events(ts,kind,data) VALUES (?,?,?)",
                    (time.time(), kind, json.dumps(data, ensure_ascii=False)))
+    from . import learning_report
+    learning_report.refresh_safely()
 
 
 def events(kind=None, since=None, limit=2000):
@@ -126,8 +129,10 @@ def events(kind=None, since=None, limit=2000):
     if since:
         q += " AND ts >= ?"
         args.append(since)
-    q += " ORDER BY ts DESC LIMIT ?"
-    args.append(limit)
+    q += " ORDER BY ts DESC, id DESC"
+    if limit is not None:
+        q += " LIMIT ?"
+        args.append(limit)
     with closing(connect()) as db:
         rows = db.execute(q, args).fetchall()
     return [dict(ts=r[0], kind=r[1], **json.loads(r[2] or "{}")) for r in rows]
@@ -138,6 +143,10 @@ def clear_learning():
         db.execute("DELETE FROM events")
         db.execute("DELETE FROM observations")
     put("autofix", {})
+    from . import learning_report
+    if learning_report.refresh_safely() is None:
+        raise RuntimeError('Learning history was cleared in Sawti, but its report could not be updated. '
+                           'The old file may remain; check the learning report folder before sharing it.')
 
 
 # ---------- presenters ----------
