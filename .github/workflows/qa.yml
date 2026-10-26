@@ -21,6 +21,7 @@ jobs:
       - run: python -m unittest discover -s tests -v
       - run: node --test tests/browser_safety.cjs
       - run: node --test tests/uninstall_ui.cjs
+      - run: node --test tests/audition_inspection.cjs
       - run: python tests/http_smoke.py
       - run: zsh -n INSTALL_SAWTI.command launch.sh START_SAWTI.command SIMULATE_SAWTI.command UNINSTALL_SAWTI.command
   macos-uninstall-build:
@@ -33,4 +34,5 @@ jobs:
           python-version: '3.12'
       - run: swiftc -swift-version 5 helpers/sawti-audio.swift -o /tmp/sawti-audio-check
       - run: osacompile -l JavaScript -o /tmp/sawti-uninstall-check.scpt helpers/uninstall-ui.js
+      - run: osacompile -l JavaScript -o /tmp/sawti-inspect-check.scpt helpers/inspect-audition.js
       - run: python -m unittest discover -s tests -p test_uninstall.py -v

@@ -67,6 +67,12 @@ def main():
             request('/api/settings', {'recording_root': str(Path(temporary) / 'Recordings')})
             assert request('/api/power/on', {'mode': 'local'})['on'] is True
             assert request('/api/status')['meter']['running'] is False
+            request('/api/pretest/start', {}, expect=422)
+            request('/api/podcast/microphones', {'inputs': [1, 4], 'studio_idle': True}, expect=422)
+            plan = request('/api/podcast/microphones', {'inputs': [1, 3], 'studio_idle': True})['plan']
+            assert plan['inputs'] == [1, 3] and plan['talkback_recorded'] is False
+            assert request('/api/readiness')['full_autonomy_ready'] is False
+            assert request('/api/audition/inspect', {})['status'] == 'simulation'
             assert request('/api/chat', {'message': 'صوتي، افحص الميكروفونات'})['source'] == 'rule'
             request('/api/action', {'action': 'set_scarlett_48k'}, expect=422)
             review = request('/api/action/review', {'action': 'set_scarlett_48k'})
@@ -74,6 +80,7 @@ def main():
             request('/api/action', grant)
             request('/api/action', grant, expect=422)
             request('/api/mode', {'mode': 'zoom'})
+            assert request('/api/power')['microphone_plan'] is None
             for action in ('create_show_input', 'create_zoom_speaker'):
                 review = request('/api/action/review', {'action': action})
                 request('/api/action', dict(action=action, approval=review['token'],

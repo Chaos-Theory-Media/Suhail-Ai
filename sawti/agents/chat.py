@@ -97,7 +97,9 @@ def answer(studio, text):
     reply, actions = "", []
 
     if intent == 'guided_recording':
-        reply = ('The complete test, countdown and record workflow is not implemented yet. '
+        reply = ('First confirm how many programme microphones in Prepare: one, two or three. '
+                 'Mic 1 is presenter; input 4 is talkback only. '
+                 'The complete test, countdown and record workflow is not implemented yet. '
                  'I will not skip your checks or send Record. Start the guided pre-test, '
                  'then verify the Audition session and armed inputs before separately authorising recording.')
         actions = [dict(action='pretest', label='Start the guided pre-test')]

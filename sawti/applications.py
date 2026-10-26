@@ -40,7 +40,8 @@ def discover(kind):
         elif not (bid.lower().startswith('com.adobe.') and 'audition' in bid.lower()):
             continue
         found.append(dict(path=str(path), bundle_id=bid, name=title,
-                          version=info.get('CFBundleShortVersionString', 'unknown')))
+                          version=info.get('CFBundleShortVersionString', 'unknown'),
+                          build=info.get('CFBundleVersion', 'unknown')))
     found.sort(key=lambda a: a['path'], reverse=True)
     found.sort(key=lambda a: 'beta' in a['path'].lower())
     return found[0] if found else None

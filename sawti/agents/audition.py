@@ -17,6 +17,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from . import Action, finding
+from ..commissioning import require_plan, template_key, template_path
 
 AGENT = "Audition"
 _bundle_cache = {}
@@ -83,28 +84,32 @@ def parse_sesx(path):
 
 
 def template_info(studio, mode):
-    t = (studio.settings("templates") or {}).get(mode)
+    t = template_path(studio, mode)
     if not t or not Path(t).is_file():
         return None
     try:
         return parse_sesx(t)
-    except (ET.ParseError, OSError) as exc:
+    except (ET.ParseError, OSError, ValueError) as exc:
         return dict(path=t, error=f"Template could not be read: {exc}", tracks=[])
 
 
 def adopt_template(studio, mode, source):
     """Copy an Audition session the operator set up into Sawti's template store for this show type."""
     from .. import paths
+    key = template_key(studio, mode)
     src = Path(source).expanduser()
     if not src.is_file() or src.suffix.lower() != ".sesx":
         raise ValueError("Choose an Audition session file (.sesx).")
     info = parse_sesx(src)
     if not info["tracks"]:
         raise ValueError("That session has no audio tracks.")
-    dst = paths.templates_dir() / f"{mode}_template.sesx"
+    if mode == 'local' and len(info['tracks']) != len(studio.mic_plan['inputs']):
+        raise ValueError('Template audio-track count must match the confirmed programme microphones. '
+                         'Input 4 must not be a recording track. Sawti has not changed the template.')
+    dst = paths.templates_dir() / (key.replace(':', '_').replace(',', '-') + '_template.sesx')
     shutil.copy2(src, dst)
     t = studio.settings("templates") or {}
-    t[mode] = str(dst)
+    t[key] = str(dst)
     studio.put_setting("templates", t)
     studio.learn("template_saved", mode=mode, tracks=len(info["tracks"]))
     return info
@@ -112,6 +117,8 @@ def adopt_template(studio, mode, source):
 
 def today_session(studio, mode):
     s = studio.state.get("session")
+    if mode == 'local' and (not studio.mic_plan or not s or s.get('microphone_plan') != studio.mic_plan):
+        return None
     if s and s.get("mode") == mode and s.get("date") == datetime.date.today().isoformat() and Path(s["path"]).exists():
         return s
     return None
@@ -119,10 +126,14 @@ def today_session(studio, mode):
 
 def prepare_session(studio, mode=None, title=None):
     mode = mode or studio.mode
-    tpl = (studio.settings("templates") or {}).get(mode)
+    plan = require_plan(studio, mode)
+    tpl = template_path(studio, mode)
     if not tpl or not Path(tpl).is_file():
         raise RuntimeError("No Audition template saved for this show yet. Set up the tracks in Audition once, "
                            "save the session, then choose it under Audition › Save as show template.")
+    info = parse_sesx(tpl)
+    if plan and len(info['tracks']) != len(plan['inputs']):
+        raise RuntimeError('The template track count does not match the confirmed microphones. Save a matching template first.')
     existing = today_session(studio, mode)
     if existing:
         return f"Today's session is ready: {existing['name']}"
@@ -138,6 +149,7 @@ def prepare_session(studio, mode=None, title=None):
     sesx = folder / f"{folder.name}.sesx"
     shutil.copy2(tpl, sesx)
     studio.state["session"] = dict(mode=mode, path=str(sesx), folder=str(folder), name=folder.name,
+                                   microphone_plan=plan,
                                    date=datetime.date.today().isoformat(), prepared=time.time())
     studio.save_state()
     studio.learn("session_prepared", mode=mode, name=folder.name, folder=str(root))
@@ -225,10 +237,10 @@ def check(studio, mode, apps):
     else:
         need = len(studio.profile(mode).get("audition_tracks", []))
         armed = [t for t in info["tracks"] if t["armed"]]
-        if len(info["tracks"]) < need:
+        if len(info["tracks"]) != need:
             F.append(finding("template_tracks", AGENT, "warn",
                              f"Template has {len(info['tracks'])} tracks; this show needs {need}",
-                             "Add the missing tracks in Audition and save the template again."))
+                             "Save a matching template for the confirmed microphone selection; exclude talkback."))
         elif any(t["armed"] is not None for t in info["tracks"]) and len(armed) < need:
             F.append(finding("template_armed", AGENT, "warn", f"Only {len(armed)} tracks are armed for recording",
                              "Arm the tracks (R button) in Audition and save the template again."))

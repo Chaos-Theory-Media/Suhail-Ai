@@ -174,12 +174,14 @@ class SafetyTests(unittest.TestCase):
             self.assertIn(self.c.post(helpers.BASE + path, json=data, headers=helpers.H).status_code, (400, 422), path)
 
     def test_skipped_pretest_cannot_claim_readiness(self):
+        self.st.select_microphones([1, 2, 3], studio_idle=True)
         self.st.pretest.start()
         while not self.st.pretest.state()['done']:
             result = self.st.pretest.skip()
         self.assertFalse(result['ready'])
 
     def test_failed_meter_does_not_start_pretest(self):
+        self.st.select_microphones([1, 2, 3], studio_idle=True)
         with patch.object(self.st, 'ensure_meter', return_value=False):
             with self.assertRaises(RuntimeError):
                 self.st.pretest.start()

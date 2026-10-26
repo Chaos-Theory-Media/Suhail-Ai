@@ -91,6 +91,12 @@ function renderPower(st) {
   $$('.mode').forEach((b) => b.classList.toggle('active', b.dataset.mode === st.mode));
   $('#aiState').textContent = st.ollama_detail || '';
   $('#recordingState').textContent = 'Audition recording state: unknown. LIVE is an operator marker.';
+  $('#podcastMicSetup').hidden = st.mode !== 'local';
+  const plan = st.microphone_plan;
+  $('#podcastMicStatus').textContent = plan ?
+    `Confirmed programme inputs: ${plan.inputs.join(', ')}. Mic 1: presenter. Input 4: talkback only.` :
+    'Confirm microphones before preparing the session or starting pre-test.';
+  if (!plan) $('#podcastMics').value = '';
   for (const n of st.notices || []) if (n.id > S.seenNotices) { S.seenNotices = n.id; toast(n.message, n.level, 9000); }
 }
 $('#powerBtn').addEventListener('click', async () => {
@@ -166,6 +172,24 @@ $('#fixAll').addEventListener('click', () => runAction('fix_all'));
 $('#openStudioApps').addEventListener('click', () => runAction('open_studio_apps'));
 $('#openFocusrite').addEventListener('click', () => runAction('open_focusrite'));
 $('#openAuditionApp').addEventListener('click', () => runAction('open_audition'));
+$('#confirmPodcastMics').addEventListener('click', async () => {
+  const value = $('#podcastMics').value;
+  if (!value) { toast('Choose one, two or three programme microphones first.', 'warn'); return; }
+  if (!(await ask('Confirm these programme microphones and that all recording is idle? This clears previous Sawti tests and stops its meters. Audition tracks and Focusrite routing still need verification.'))) return;
+  const r = await guard(() => api('/api/podcast/microphones', {body: {
+    inputs: value.split(',').map(Number), studio_idle: true}}), x => x.message);
+  if (r) { pollStatus(); refreshAudition(); refreshChecks(); pollPretest(); }
+});
+for (const [id, path, body] of [
+  ['autonomyReadiness', '/api/readiness', undefined],
+  ['inspectAudition', '/api/audition/inspect', {}]
+]) $( '#' + id).addEventListener('click', async () => {
+  const generation = S.generation;
+  const r = await guard(() => api(path, {body}));
+  if (!r || !S.on || generation !== S.generation) return;
+  $('#autonomyReport').hidden = false;
+  $('#autonomyReport').textContent = JSON.stringify(r, null, 2);
+});
 $('#deviceDiagnostics').addEventListener('click', async () => {
   const result = await guard(() => api('/api/devices'));
   if (!result) return;

@@ -1,3 +1,11 @@
+# 3.0.4 Podcast commissioning and autonomy evidence
+
+- Confirm one to three programme microphones in Prepare. Mic 1 is presenter; input 4 is talkback only. Selected inputs drive the Podcast profile and pre-test. Zoom retains its separate existing profile.
+- Keep templates per mic arrangement, enforce matching audio-track count, and bind dated sessions to the current confirmation. Reconfirming, OFF and mode changes invalidate the old plan while preserving recordings and session files.
+- Invalidate prior approvals and manual sound-check confirmations when changing the plan; stop only Sawti capture without opening apps, changing devices or restarting a stream.
+- Add actual OS/app build readback and an honest readiness report. Add explicit bounded read-only Audition Accessibility inspection; no activation, clicking, keystrokes or transport commands. OFF remains responsive and discards late inspection results.
+- Automated coverage includes microphone bounds, talkback exclusion from the plan, wrong templates, stale session bindings, permission failures and bounded inspection. Real Mac qualification, input/arm verification, hands-free Mic 1 listening, spoken countdown and autonomous transport remain outstanding.
+
 # 3.0.3 studio application and device diagnostics
 
 Corrects Focusrite Control compatibility, adds explicit studio-application launch controls independent of session templates, supports actual Audition bundle identifiers, surfaces OS/device query errors and distinguishes unverified rates from a hardware mismatch. See [audit/studio-apps/README.md](audit/studio-apps/README.md) for evidence and Mac follow-up steps.

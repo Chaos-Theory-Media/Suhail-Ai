@@ -38,6 +38,7 @@ class Approvals:
     def fingerprint(self):
         st = self.studio
         state = dict(mode=st.mode, live=st.live, session=st.state.get('session'),
+                     microphone_plan=st.mic_plan,
                      devices=st.devices(fresh=True), settings=st.settings('leveler_enabled'))
         return hashlib.sha256(json.dumps(state, sort_keys=True).encode()).hexdigest()
 

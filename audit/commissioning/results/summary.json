@@ -1,0 +1,22 @@
+{
+  "version": "3.0.4",
+  "environment": "Linux cloud; isolated simulation and fake Accessibility interfaces",
+  "python": {
+    "passed": 141,
+    "command": ".venv/bin/python -m unittest discover -s tests -v"
+  },
+  "javascript": {
+    "passed": 19,
+    "command": "node --test tests/audition_inspection.cjs tests/browser_safety.cjs tests/uninstall_ui.cjs"
+  },
+  "http": {
+    "passed": 31,
+    "command": ".venv/bin/python tests/http_smoke.py"
+  },
+  "mac_shell_syntax": "passed zsh -n on installer, launch, start, simulation and uninstall command files",
+  "real_mac_tested": false,
+  "audition_controls_qualified": false,
+  "focusrite_controls_qualified": false,
+  "full_autonomy_ready": false,
+  "macos_ci": "Compile checks configured; hosted results not verified in this session"
+}

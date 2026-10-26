@@ -1,0 +1,161 @@
+{
+  "requests": 31,
+  "results": [
+    {
+      "path": "/",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/static/app.js",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/static/app.css",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/power",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/checks",
+      "method": "GET",
+      "status": 503
+    },
+    {
+      "path": "/api/power/on",
+      "method": "POST",
+      "status": 403
+    },
+    {
+      "path": "/api/settings",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/power/on",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/status",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/pretest/start",
+      "method": "POST",
+      "status": 422
+    },
+    {
+      "path": "/api/podcast/microphones",
+      "method": "POST",
+      "status": 422
+    },
+    {
+      "path": "/api/podcast/microphones",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/readiness",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/audition/inspect",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/chat",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/action",
+      "method": "POST",
+      "status": 422
+    },
+    {
+      "path": "/api/action/review",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/action",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/action",
+      "method": "POST",
+      "status": 422
+    },
+    {
+      "path": "/api/mode",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/power",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/action/review",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/action",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/action/review",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/action",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/meter/start",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/live/start",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/action/review",
+      "method": "POST",
+      "status": 422
+    },
+    {
+      "path": "/api/power/off",
+      "method": "POST",
+      "status": 200
+    },
+    {
+      "path": "/api/power",
+      "method": "GET",
+      "status": 200
+    },
+    {
+      "path": "/api/status",
+      "method": "GET",
+      "status": 503
+    }
+  ],
+  "real_audio_capture": false
+}

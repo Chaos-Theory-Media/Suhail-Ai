@@ -6,6 +6,7 @@ import threading
 import time
 
 from . import paths, store
+from .commissioning import microphone_plan
 from .agents import audition, devices as devices_agent, learning, levels, mac
 from .agents.pretest import Pretest
 from .coreaudio import SHOW_INPUT_NAME, SHOW_INPUT_UID, find_blackhole, find_scarlett, find_uid, input_layout, make_audio
@@ -23,6 +24,7 @@ class Studio:
         self.lifecycle = Lifecycle(allow_ai=not self.audio.simulated)
         self.lock = threading.RLock()
         self.mode = "local"
+        self.mic_plan = None  # explicit confirmation per powered session; never restored from disk
         self.live = False
         self.live_since = None
         self.accessibility_ok = None
@@ -82,10 +84,33 @@ class Studio:
             raise ValueError("Unknown show type")
         prof = json.loads((paths.APP_ROOT / "profiles" / f"{mode}.json").read_text())
         names = (self.settings("source_names") or {}).get(mode, {})
+        if mode == 'local' and self.mic_plan:
+            chosen = self.mic_plan['inputs']
+            prof['sources'] = [s for s in prof['sources'] if s['role'] != 'programme' or s['channels'][0] in chosen]
+            prof['audition_tracks'] = [f'Mic {i}' for i in chosen]
+            prof['name'] = f'Podcast · {len(chosen)} microphone(s)'
         for s in prof["sources"]:
             if names.get(s["id"]):
                 s["name"] = names[s["id"]][:60]
         return prof
+
+    @powered
+    def select_microphones(self, inputs, studio_idle=False):
+        plan = microphone_plan(inputs)
+        if self.mode != 'local':
+            raise RuntimeError('Microphone selection currently supports Podcast mode only.')
+        if self.live or studio_idle is not True:
+            raise RuntimeError('Confirm all recording is idle before changing the Podcast plan.')
+        self.pretest.cancel()
+        self.approvals.invalidate()
+        # Stop only Sawti capture. Never reopen a stream or touch production audio here.
+        self.stop_meter()
+        self.mic_plan = plan
+        self.state['confirmed'] = {}
+        self.save_state()
+        self.learn('microphones_selected', inputs=plan['inputs'], mode=self.mode)
+        return dict(plan=plan, message='Podcast plan confirmed. Mic 1 is presenter; input 4 is talkback only. '
+                    'Verify the matching Audition template; its tracks have not been changed.')
 
     def devices(self, fresh=False):
         t, cached = self._dev_cache
@@ -201,6 +226,11 @@ class Studio:
         snap = self.monitor.snapshot()
         F = devices_agent.check(self, mode, devs) + mac.check(self, mode, snap, apps) + \
             audition.check(self, mode, apps) + levels.check(self, snap)
+        if mode == 'local' and not self.mic_plan:
+            F.append(dict(id='microphone_selection', agent='Audition', severity='warn',
+                          title='How many microphones for this Podcast?',
+                          detail='Confirm 1–3 programme microphones in Prepare. Mic 1 is presenter; input 4 is talkback only.',
+                          action=None, action_label=None))
         if snap.get("error") and not snap.get("running"):
             F.append(dict(id="meter_error", agent="Levels", severity="warn", title="Meters could not start",
                           detail=snap["error"], action=None, action_label=None))
@@ -313,6 +343,7 @@ class Studio:
         self.pretest.cancel()
         self.approvals.invalidate()
         self.mode = mode
+        self.mic_plan = None
         self.learn("mode_selected", mode=mode)
         if was_running:
             self.stop_meter()
@@ -361,6 +392,7 @@ class Studio:
         self._stop.set()
         self.power_epoch += 1
         self.approvals.invalidate()
+        self.mic_plan = None
         if self.live:
             self.end_live()
         try:
@@ -410,4 +442,5 @@ class Studio:
                     live_minutes=round((time.time() - (self.live_since or time.time())) / 60, 1) if self.live else None,
                     ollama=lc["ollama"], ollama_detail=lc["ollama_detail"], keep_awake=lc["keep_awake"],
                     simulated=self.audio.simulated, session=self.state.get("session"),
+                    microphone_plan=self.mic_plan,
                     notices=list(self.notices)[-8:])

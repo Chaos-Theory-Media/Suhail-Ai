@@ -10,7 +10,7 @@ from pathlib import Path
 
 from flask import Flask, g, jsonify, request, send_from_directory
 
-from . import VERSION, paths, store, voice
+from . import VERSION, paths, readiness, store, voice
 from .agents import audition, chat, learning, levels, post
 
 PORT = int(os.environ.get("SAWTI_PORT", "8765"))
@@ -59,7 +59,7 @@ def create_app(studio):
                 return jsonify(error="Sawti power changed while this request was waiting."), 409
             # Read-only inference/conversion may take seconds. Do not delay OFF
             # behind it; discard the response if its admission epoch changes.
-            if request.path in ('/api/chat', '/api/voice'):
+            if request.path in ('/api/chat', '/api/voice', '/api/audition/inspect'):
                 g.admitted_epoch = epoch
                 g.studio_locked = False
                 studio.lock.release()
@@ -211,11 +211,25 @@ def create_app(studio):
         return jsonify(run(fns[step]))
 
     # ------------------------------------------------------------ Audition
+    @app.post('/api/podcast/microphones')
+    def podcast_microphones():
+        d = body()
+        return jsonify(run(lambda: studio.select_microphones(d.get('inputs'), d.get('studio_idle'))))
+
+    @app.get('/api/readiness')
+    def autonomy_readiness():
+        return jsonify(run(lambda: readiness.report(studio)))
+
+    @app.post('/api/audition/inspect')
+    def audition_inspect():
+        return jsonify(run(lambda: readiness.inspect_audition(studio)))
+
     @app.get("/api/audition")
     def audition_info():
         app_ = audition.find_app() if not studio.audio.simulated else dict(name="Adobe Audition (simulated)")
         return jsonify(app=app_, template=audition.template_info(studio, studio.mode),
                        session=audition.today_session(studio, studio.mode),
+                       microphone_plan=studio.mic_plan,
                        suggested_name=learning.suggest_name(studio, studio.mode),
                        accessibility=studio.accessibility_ok)
 

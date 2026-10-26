@@ -57,6 +57,32 @@
         <button class="btn" id="deviceDiagnostics">Show device diagnostics</button>
       </div>
       <pre id="deviceDiagnosticText" class="box" hidden></pre>
+      <div id="podcastMicSetup" class="box mt">
+        <h3>How many microphones for this Podcast?</h3>
+        <p>Mic 1 is always the presenter. Input 4 is always talkback and must not be recorded.</p>
+        <div class="formrow">
+          <label for="podcastMics">Programme microphones</label>
+          <select id="podcastMics">
+            <option value="">Choose for this session</option>
+            <option value="1">1 mic: presenter on Mic 1</option>
+            <option value="1,2">2 mics: presenter + guest on Mic 2</option>
+            <option value="1,3">2 mics: presenter + guest on Mic 3</option>
+            <option value="1,2,3">3 mics: presenter + both guests</option>
+          </select>
+          <button class="btn primary" id="confirmPodcastMics">Confirm microphones</button>
+        </div>
+        <p id="podcastMicStatus" class="hint">Confirm microphones before preparing the session or starting pre-test.</p>
+        <p class="hint">This selects Sawti’s test plan; it does not configure Audition tracks or change Focusrite routing. A matching Audition template is required. Reconfirming starts a new plan and clears previous checks.</p>
+      </div>
+      <details class="mt">
+        <summary>Hands-free recording readiness</summary>
+        <p class="hint">These checks do not start recording. Inspect controls reads the already-open Audition interface and may request macOS Accessibility/Automation permission. Results stay on this Mac and may include window or session names; review before sharing.</p>
+        <div class="row gap">
+          <button class="btn" id="autonomyReadiness">Show readiness report</button>
+          <button class="btn" id="inspectAudition">Inspect Audition controls</button>
+        </div>
+        <pre id="autonomyReport" class="box" hidden></pre>
+      </details>
       <p class="hint">Red = must fix · Amber = should fix · Blue = confirm by hand (once per day) · Green = fine.</p>
       <div id="findings" class="findings"></div>
 

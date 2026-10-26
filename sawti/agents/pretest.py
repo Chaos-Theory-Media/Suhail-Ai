@@ -27,6 +27,8 @@ class Pretest:
     def start(self):
         st = self.studio
         st.require_on()
+        from ..commissioning import require_plan
+        require_plan(st)
         if st.live:
             raise RuntimeError('Run the sound check before the live show.')
         prof = st.profile(st.mode)

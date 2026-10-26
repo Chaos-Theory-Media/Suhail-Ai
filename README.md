@@ -1,4 +1,6 @@
-# Sawti 3.0.3 (صوتي): studio agents for IMI podcasts
+# Sawti 3.0.4 (صوتي): studio agents for IMI podcasts
+
+**Podcast commissioning (3.0.4):** Prepare asks which 1–3 programme mics are in use. Mic 1 is always presenter; input 4 is talkback only. Confirm while idle, then save/use a matching Audition template for that arrangement. Pre-test covers the selected programme mics and talkback. This does not automatically configure or verify Audition inputs. New in-app readiness and read-only control inspection report the remaining hands-free recording gaps. See [update and Mac qualification steps](audit/commissioning/README.md).
 
 **Studio app/device fixes (3.0.3):** Prepare now has **Open studio apps** and **Show device diagnostics**. Scarlett 18i8 3rd Generation uses **Focusrite Control**. Unread rates are reported as **unverified**, not unset. See [Mac integration feedback and update steps](audit/studio-apps/README.md).
 
@@ -30,8 +32,10 @@ Built for: Mac Studio (Apple silicon, macOS 14+), Focusrite Scarlett 18i8, Adobe
    The first time Sawti presses Record, macOS asks for **Accessibility**. Allow **Sawti** (or Terminal).
 
 ### Make the Audition template (once per show type)
+In Sawti's **Prepare**, confirm the Podcast microphones for this session first. Templates are stored separately for each arrangement; OFF or changing mode clears the confirmation. Reconfirming starts a new plan and invalidates previous tests. Existing session files are preserved.
+
 In Audition, create a **48 kHz multitrack session**:
-* **Podcast:** three **mono** tracks named *Mic 1, Mic 2, Mic 3*, inputs Scarlett 1, 2, 3, all armed (R).
+* **Podcast:** one **mono** track per confirmed programme mic, named *Mic 1* and the selected guest mics, with the corresponding Scarlett inputs, all armed (R). Never add input 4 as a programme recording track. Sawti checks track count, but actual input mapping and talkback exclusion still need verification in Audition.
 * **Zoom Show:** the same, plus a **stereo** track *Zoom guests* whose input is the last two channels of
   **Sawti Show Input**. Create that device first: switch Sawti ON, choose Zoom Show, press
   *Create it*, then review and approve the individual device change while all recording is idle.

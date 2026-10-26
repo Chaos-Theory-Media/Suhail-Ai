@@ -18,6 +18,7 @@ class StudioSimulationTests(unittest.TestCase):
         store.put("recording_root", self.root)
         self.st.state = {}
         self.st.power_on("local")
+        self.st.select_microphones([1, 2, 3], studio_idle=True)
 
     def tearDown(self):
         self.st.power_off()
