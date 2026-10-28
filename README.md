@@ -1,4 +1,6 @@
-# Sawti 3.2.0 (صوتي): studio agents for IMI podcasts
+# Sawti 3.2.1 (صوتي): studio agents for IMI podcasts
+
+**Saved Audition template dropdown (3.2.1):** Prepare → **Find saved .sesx files** → choose a saved session → inspect its tracks/rate → confirm it is an empty template → **Use selected as show template**. Searching is read-only. Only explicit adoption changes Sawti’s template copy; it preserves the original and does not open Audition or change routing. [Search locations, safety checks and limits](audit/template-picker/README.md).
 
 **Start here: [Two-person podcast — illustrated operator guide](docs/two-person-podcast/README.md)** · [Printable PDF](docs/two-person-podcast/Sawti-3.2-Two-Person-Podcast-Guide.pdf). Presenter on Mic 1, guest on Mic 2; step-by-step preparation, sound check, recording and saving.
 

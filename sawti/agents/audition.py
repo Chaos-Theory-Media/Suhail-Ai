@@ -6,11 +6,14 @@ the operator sets the tracks up once and saves it as the show template; Sawti co
 dated, correctly named session folder for every show and opens it. Recorded takes then land in that folder.
 """
 import datetime
+import hashlib
 import glob
 import os
 import plistlib
 import shutil
+import stat
 import subprocess
+import tempfile
 import threading
 import time
 import xml.etree.ElementTree as ET
@@ -53,9 +56,28 @@ def open_application(studio):
 # ------------------------------------------------------------------ session files
 def parse_sesx(path):
     """Best-effort read of an Audition session: sample rate, tracks (name, mono/stereo, armed, input)."""
-    if Path(path).stat().st_size > 8 * 1024 * 1024:
+    return _parse_sesx(read_session(path), path)
+
+
+def read_session(path):
+    # No final-component symlinks, FIFOs or unbounded reads. Inspection never opens Audition.
+    descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0) | getattr(os, 'O_NONBLOCK', 0))
+    with os.fdopen(descriptor, 'rb') as stream:
+        if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode):
+            raise ValueError('Choose a regular saved .sesx file.')
+        data = stream.read(8 * 1024 * 1024 + 1)
+    if len(data) > 8 * 1024 * 1024:
         raise ValueError('The session template exceeds the 8 MiB inspection limit.')
-    root = ET.parse(str(path)).getroot()
+    return data
+
+
+def _parse_sesx(data, path):
+    try:
+        root = ET.fromstring(data)
+    except ET.ParseError:
+        raise ValueError('This saved file is not readable Audition session XML. Save a clean .sesx in Audition and try again.') from None
+    if root.tag.lower() != 'sesx':
+        raise ValueError('This is not a supported Audition .sesx session.')
     session = root.find(".//session")
     rate = session.get("sampleRate") if session is not None else None
     tracks = []
@@ -80,7 +102,15 @@ def parse_sesx(path):
                 inputs.append({k: v for k, v in sub.attrib.items()})
         tracks.append(dict(name=(name_el.text or "").strip() if name_el is not None else "", channels=ctype,
                            armed=armed, inputs=inputs))
-    return dict(path=str(path), sample_rate=int(float(rate)) if rate else None, tracks=tracks)
+    media = False
+    for el in root.iter():
+        tag = el.tag.lower()
+        if tag in ('audioclip', 'videoclip', 'clip'):
+            media = True
+        if tag == 'file' and (el.attrib or (el.text or '').strip()):
+            media = True
+    return dict(path=str(path), sample_rate=int(float(rate)) if rate else None, tracks=tracks,
+                contains_media=media, sha256=hashlib.sha256(data).hexdigest())
 
 
 def template_info(studio, mode):
@@ -93,24 +123,62 @@ def template_info(studio, mode):
         return dict(path=t, error=f"Template could not be read: {exc}", tracks=[])
 
 
-def adopt_template(studio, mode, source):
+def adopt_template(studio, mode, source, expected_sha256=None, expected_context=None):
     """Copy an Audition session the operator set up into Sawti's template store for this show type."""
-    from .. import paths
-    key = template_key(studio, mode)
+    from ..template_catalog import context
+    with studio.lock:
+        studio.require_on()
+        bound = context(studio)
+        if studio.live or (expected_context is not None and expected_context != bound):
+            raise RuntimeError('Studio state changed or is live. Confirm production is idle and inspect the template again.')
+        key = template_key(studio, mode)
     src = Path(source).expanduser()
     if not src.is_file() or src.suffix.lower() != ".sesx":
         raise ValueError("Choose an Audition session file (.sesx).")
-    info = parse_sesx(src)
+    data = read_session(src)
+    info = _parse_sesx(data, src)
+    with studio.lock:
+        if not studio.lifecycle.on or studio.live or bound != context(studio):
+            raise RuntimeError('Studio state changed; the template was not adopted.')
+        return _save_template(studio, mode, key, data, info, expected_sha256)
+
+
+def _save_template(studio, mode, key, data, info, expected_sha256):
+    from .. import paths
+    if expected_sha256 is not None and info['sha256'] != expected_sha256:
+        raise ValueError('The selected file changed after inspection. Inspect it again before adoption.')
     if not info["tracks"]:
         raise ValueError("That session has no audio tracks.")
     if mode == 'local' and len(info['tracks']) != len(studio.mic_plan['inputs']):
         raise ValueError('Template audio-track count must match the confirmed programme microphones. '
                          'Input 4 must not be a recording track. Sawti has not changed the template.')
+    if info['contains_media']:
+        raise ValueError('This session contains clips or media references. Save a clean, empty template in Audition first. '
+                         'The original session and recordings were left unchanged.')
     dst = paths.templates_dir() / (key.replace(':', '_').replace(',', '-') + '_template.sesx')
-    shutil.copy2(src, dst)
+    if dst.is_symlink():
+        raise ValueError('The saved template is a link; no file was replaced.')
+    temporary = None
+    try:
+        with tempfile.NamedTemporaryFile(dir=dst.parent, prefix='.template-', suffix='.tmp', delete=False) as stream:
+            temporary = stream.name
+            stream.write(data)
+        os.replace(temporary, dst)
+    finally:
+        if temporary and os.path.exists(temporary):
+            os.unlink(temporary)
     t = studio.settings("templates") or {}
     t[key] = str(dst)
     studio.put_setting("templates", t)
+    # A new template cannot silently reuse an episode copied from the previous template.
+    # These are Sawti state changes only; do not close/open any Audition session or touch audio routing.
+    if mode == studio.mode:
+        studio.pretest.cancel()
+        studio.approvals.invalidate()
+        studio.presenter_speech.stop(clear=True)
+        studio.state['confirmed'] = {}
+        studio.state.pop('session', None)
+        studio.save_state()
     studio.learn("template_saved", mode=mode, tracks=len(info["tracks"]))
     return info
 

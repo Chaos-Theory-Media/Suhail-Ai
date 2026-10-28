@@ -107,6 +107,8 @@ function renderPower(st) {
   $('#podcastMicSetup').hidden = st.mode !== 'local';
   renderMicrophones(st.on && st.mode === 'local' ? st.microphone_plan : null,
     `${st.on}:${st.mode}:${st.power_epoch || 0}`);
+  const templateContext = `${S.micContext}:${S.micPlanId}`;
+  if (S.templateContext !== templateContext) { resetTemplateChoices(); S.templateContext = templateContext; }
   if (S.speechContext !== S.micContext) {
     S.speechContext = S.micContext;
     S.speechRequestPending = false; S.speechRequestEpoch++;
@@ -247,9 +249,67 @@ $('#prepareBtn').addEventListener('click', async () => {
 });
 $('#openBtn').addEventListener('click', () => runAction('open_session'));
 $('#templateBtn').addEventListener('click', async () => {
-  const r = await guard(() => api('/api/audition/template', { body: { path: $('#templatePath').value.trim().replace(/^'|'$/g, '') } }),
+  const context = templateContext();
+  if (!(await ask('Use this clean, empty .sesx as the show template? Confirm it contains no recorded clips and ALL recording is idle. Sawti will clear its previous session preparation and tests, preserving existing files and the session open in Audition.'))) return;
+  if (!S.on || context !== templateContext()) return;
+  const r = await guard(() => api('/api/audition/template', { body: { path: $('#templatePath').value.trim().replace(/^'|'$/g, ''),
+    studio_idle: true, blank_template_confirmed: true } }),
     (x) => `Template saved: ${x.template.tracks.length} tracks.`);
-  if (r) { refreshAudition(); refreshChecks(); }
+  if (r) { $('#postFolder').value = ''; refreshAudition(); refreshChecks(); }
+});
+
+let templateGeneration = 0, templateSelection = null;
+function templateContext() { return `${S.micContext}:${S.micPlanId}`; }
+function resetTemplateChoices() {
+  templateGeneration++; templateSelection = null;
+  $('#templateChoice').replaceChildren(h('option', {value: '', text: 'Find saved files first'}));
+  $('#templateSearchStatus').textContent = 'No search for this microphone plan. Click Find saved .sesx files.';
+  $('#templatePreview').hidden = true; $('#templatePreview').textContent = '';
+  $('#templateEmpty').checked = false; $('#useTemplateChoice').disabled = true;
+}
+$('#findTemplates').addEventListener('click', async () => {
+  const context = templateContext(); resetTemplateChoices(); const generation = templateGeneration;
+  $('#templateSearchStatus').textContent = 'Looking for saved .sesx files…';
+  const r = await guard(() => api('/api/audition/templates/search', {body: {folder: $('#templateSearchFolder').value.trim()}}));
+  if (!S.on || generation !== templateGeneration || context !== templateContext()) return;
+  if (!r) { $('#templateSearchStatus').textContent = 'Search did not complete. Check folder access and try again.'; return; }
+  $('#templateChoice').replaceChildren(h('option', {value: '', text: 'Choose a saved file to inspect'}),
+    ...r.files.map(file => h('option', {value: file.id, text: `${file.name} — ${file.folder}`})));
+  $('#templateSearchStatus').textContent = `${r.files.length} saved file(s) found. ` +
+    (r.limited ? 'Search limit reached; narrow the folder to find more. ' : '') +
+    (r.warnings.length ? `${r.warnings.join(' · ')} ` : '') +
+    (r.files.length ? 'Select a file to inspect it; no application will open.' : 'Save the session in Audition first, or search its folder.');
+});
+$('#templateChoice').addEventListener('change', async () => {
+  const id = $('#templateChoice').value, context = templateContext(), generation = ++templateGeneration;
+  templateSelection = null; $('#templateEmpty').checked = false; $('#useTemplateChoice').disabled = true;
+  $('#templatePreview').hidden = !id; $('#templatePreview').textContent = id ? 'Inspecting saved session…' : '';
+  if (!id) return;
+  const r = await guard(() => api('/api/audition/templates/inspect', {body: {id}}));
+  if (!S.on || generation !== templateGeneration || context !== templateContext() || id !== $('#templateChoice').value) return;
+  if (!r) { $('#templatePreview').textContent = 'Could not inspect this file. Choose another or save it again in Audition.'; return; }
+  const info = r.template;
+  const ready = info.tracks.length > 0 && !info.contains_media && (S.mode !== 'local' || r.matches_plan === true);
+  $('#templateEmpty').checked = false; $('#useTemplateChoice').disabled = true;
+  $('#templatePreview').textContent = `${info.tracks.length} audio track(s) · ${info.sample_rate ? info.sample_rate / 1000 + ' kHz' : 'rate unverified'}\n` +
+    info.tracks.map(track => `${track.name || '(unnamed)'} · armed: ${track.armed === null ? 'unverified' : track.armed ? 'yes' : 'no'}`).join('\n') +
+    (info.contains_media ? '\nContains clips or media references. Save an empty template first.' : '\nNo known clip/media elements detected; check that it is empty in Audition.') +
+    (S.mode === 'local' && r.matches_plan !== true ? '\nConfirm the microphone plan and choose a file with the matching number of audio tracks.' : '') +
+    '\nInput mapping and talkback exclusion still need verification in Audition.';
+  templateSelection = {id, sha256: info.sha256, context, ready};
+});
+$('#templateEmpty').addEventListener('change', () => {
+  $('#useTemplateChoice').disabled = !(templateSelection?.ready && templateSelection.context === templateContext() && $('#templateEmpty').checked);
+});
+$('#useTemplateChoice').addEventListener('click', async () => {
+  const selected = templateSelection, generation = templateGeneration;
+  if (!selected?.ready || selected.context !== templateContext() || !$('#templateEmpty').checked)
+    return toast('Inspect a matching empty template and confirm it is clean first.', 'warn');
+  if (!(await ask('Adopt this inspected file as the show template? Confirm ALL recording is idle. Sawti will clear previous preparation and tests; existing files and Audition’s open session are preserved.'))) return;
+  if (generation !== templateGeneration || selected !== templateSelection || selected.context !== templateContext()) return;
+  const r = await guard(() => api('/api/audition/templates/use', {body: {id: selected.id, sha256: selected.sha256,
+    studio_idle: true, blank_template_confirmed: true}}), 'Show template saved. Prepare a new episode, then verify the tracks in Audition.');
+  if (r) { $('#postFolder').value = ''; refreshAudition(); refreshChecks(); }
 });
 
 // ------------------------------------------------------------------ meters

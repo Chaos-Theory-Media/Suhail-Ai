@@ -1,3 +1,11 @@
+# 3.2.1 Saved Audition template discovery and dropdown
+
+- Add explicit read-only discovery of saved .sesx files in standard local locations, plus a specific-folder option, with bounded traversal and permission/limit reporting. Unsaved Audition windows are not a file catalogue.
+- Add a dropdown and preview showing track names, saved arm flags and sample rate. A saved session is not automatically an empty template. Known clips/media references, changed source content, stale microphone plans and mismatched track counts block adoption.
+- Require idle and empty-template attestations for dropdown and manual-path adoption. Copy a validated byte snapshot atomically, including safe reuse of Sawti’s current stored template. Invalidate old Sawti session preparation, checks and private-speech qualification without opening Audition, sending transport commands or deleting existing episodes.
+- Keep OFF responsive during scans/source reads and discard stale results. Extend uninstall’s narrow generated-template allowlist to all supported microphone arrangements while preserving original/unknown sessions.
+- Preserve manual path entry and existing two-person instructions. Real Mac folder permissions and actual Audition 26.3 files still require qualification.
+
 # 3.2.0 Enhanced local models for the M1 Ultra (Mac qualification preview)
 
 - Offer Qwen3-30B-A3B Q4_K_M instead of the former fixed Qwen3 4B, retaining the existing model and requiring downloaded model details/tool support before activating the upgrade. Changing the selection in Settings requires OFF. Use bounded 8K context, disabled thinking, one loaded Ollama model and one parallel request.

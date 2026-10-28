@@ -19,6 +19,8 @@ h3 { font-size: 15px; margin: 14px 0 8px; }
 .hint { color: var(--muted); font-size: 13px; margin: 6px 0; }
 .error { color: var(--bad); background: #f05a6714; border: 1px solid #f05a6750; padding: 10px 12px; border-radius: 10px; margin: 8px 0; }
 #deviceDiagnosticText { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+#templatePreview { white-space: pre-wrap; overflow-wrap: anywhere; }
+#templateChoice { max-width: 100%; min-width: 0; padding: 8px; font: inherit; }
 
 .top { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
   padding: 14px 22px; background: #0e1724; border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }

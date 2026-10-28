@@ -94,6 +94,24 @@
         <button class="btn" id="prepareBtn">Prepare session</button>
         <button class="btn primary" id="openBtn">Open in Audition</button>
       </div>
+      <div class="box mt">
+        <h3>Choose an existing Audition template</h3>
+        <p class="hint">Find saved .sesx files in Documents, Music, Adobe Audition settings and Sawti’s template folder. Search is read-only; unsaved sessions cannot appear. A saved episode is not necessarily an empty template.</p>
+        <div class="formrow">
+          <button class="btn" id="findTemplates">Find saved .sesx files</button>
+          <label for="templateChoice">Saved sessions / templates</label>
+          <select id="templateChoice"><option value="">Find saved files first</option></select>
+        </div>
+        <p id="templateSearchStatus" class="hint" role="status">No search yet. Nothing is opened or changed by searching.</p>
+        <pre id="templatePreview" class="hint" hidden></pre>
+        <label class="check"><input id="templateEmpty" type="checkbox"> I checked this is a clean, empty reusable template, without recorded clips</label>
+        <button class="btn primary mt" id="useTemplateChoice" disabled>Use selected as show template</button>
+        <details class="mt">
+          <summary>Search a different folder</summary>
+          <p class="hint">For another location or a limited search, paste a specific folder path below and click Find. Leave it blank for the standard locations. Finder: select the folder, then Option+Command+C to copy its path. Links and hidden folders are skipped; macOS may request folder access.</p>
+          <input id="templateSearchFolder" placeholder="/Users/studio/Documents/Audition Templates" autocomplete="off">
+        </details>
+      </div>
       <details class="mt">
         <summary>Save the show template (first time, or after changing tracks)</summary>
         <p class="hint">In Audition: create a 48 kHz multitrack session, add one mono track per mic

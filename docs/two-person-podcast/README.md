@@ -1,5 +1,7 @@
 # Two-person podcast with Sawti 3.2.0
 
+**Sawti 3.2.1 shortcut:** Once the clean template is saved in Audition, you can use Prepare → Find saved .sesx files → choose it from the dropdown → review the preview → confirm it is empty → Use selected as show template. Manual path entry in the illustrated 3.2.0 guide remains supported. Searching does not open Audition.
+
 Presenter on **Mic 1**, guest on **Mic 2**, input 4 reserved for operator talkback. This first run uses buttons; a spoken automatic test/countdown/record sequence is not implemented.
 
 [Download the printable illustrated guide](Sawti-3.2-Two-Person-Podcast-Guide.pdf)

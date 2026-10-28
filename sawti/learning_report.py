@@ -37,6 +37,7 @@ ENUMS = {
 }
 ENUMS['operation'].update('/api/presenter-speech/configure /api/presenter-speech/test '
                           '/api/presenter-speech/enable /api/presenter-speech/speak /api/presenter-speech/mute'.split())
+ENUMS['operation'].update('/api/audition/templates/search /api/audition/templates/inspect /api/audition/templates/use'.split())
 NUMBERS = {'delta', 'tracks', 'actions', 'count', 'minutes', 'lufs', 'error_status'}
 BOOLEANS = {'ok', 'within', 'live', 'simulated', 'test'}
 STEPS = {'checks', 'mic:mic1', 'mic:mic2', 'mic:mic3', 'talkback', 'remote', 'record'}

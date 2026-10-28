@@ -14,6 +14,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -70,6 +71,11 @@ def main():
             request('/api/power/on', {}, expect=403, extra={'Origin': 'https://foreign.example'})
             request('/api/settings', {'recording_root': str(Path(temporary) / 'Recordings')})
             assert request('/api/power/on', {'mode': 'local'})['on'] is True
+            saved_templates = request('/api/audition/templates/search', {})
+            assert saved_templates['files'] == [] and saved_templates['limited'] is False
+            request('/api/audition/templates/inspect', {'id': 'not-found'}, expect=422)
+            request('/api/audition/templates/use', {'id': 'not-found'}, expect=400)
+            request('/api/audition/template', {'path': '/missing/template.sesx'}, expect=400)
             assert request('/api/knowledge')['documents'] == []
             request('/api/models/check', {'studio_idle': False}, expect=400)
             request('/api/models/check', {'studio_idle': True}, expect=400)
@@ -106,6 +112,23 @@ def main():
             request('/api/podcast/microphones', {'inputs': [1, 4], 'studio_idle': True}, expect=422)
             plan = request('/api/podcast/microphones', {'inputs': [1, 3], 'studio_idle': True})['plan']
             assert plan['inputs'] == [1, 3] and plan['talkback_recorded'] is False
+            template_folder = Path(temporary) / 'Saved Audition Templates'
+            template_folder.mkdir()
+            tree = ET.parse(ROOT / 'tests/fixtures/podcast_template.sesx')
+            tracks = tree.find('.//tracks')
+            tracks.remove(next(track for track in tracks if track.tag == 'audioTrack' and track.get('index') == '2'))
+            tree.write(template_folder / 'Two people.sesx')
+            choices = request('/api/audition/templates/search', {'folder': str(template_folder)})['files']
+            assert len(choices) == 1
+            selected_template_id = choices[0]['id']
+            preview = request('/api/audition/templates/inspect', {'id': selected_template_id})
+            assert preview['matches_plan'] is True and preview['template']['contains_media'] is False
+            adopted = request('/api/audition/templates/use', {'id': selected_template_id,
+                'sha256': preview['template']['sha256'], 'studio_idle': True, 'blank_template_confirmed': True})
+            assert len(adopted['template']['tracks']) == 2
+            episode = request('/api/session/prepare', {'title': 'Template Dropdown Test'})['session']
+            assert Path(episode['path']).is_file()
+            assert request('/api/audition')['template']['sample_rate'] == 48000
             assert request('/api/readiness')['full_autonomy_ready'] is False
             assert request('/api/audition/inspect', {})['status'] == 'simulation'
             assert request('/api/chat', {'message': 'صوتي، افحص الميكروفونات'})['source'] == 'rule'
@@ -115,6 +138,7 @@ def main():
             request('/api/action', grant)
             request('/api/action', grant, expect=422)
             request('/api/mode', {'mode': 'zoom'})
+            request('/api/audition/templates/inspect', {'id': selected_template_id}, expect=422)
             assert request('/api/power')['microphone_plan'] is None
             for action in ('create_show_input', 'create_zoom_speaker'):
                 review = request('/api/action/review', {'action': action})

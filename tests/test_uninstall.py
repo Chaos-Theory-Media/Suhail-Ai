@@ -95,6 +95,20 @@ class UninstallTests(unittest.TestCase):
         self.assertFalse(runtime.exists())
         self.assertTrue(any(item['original'].endswith('/knowledge') for item in result['moved']))
 
+    def test_generated_mic_plan_template_copies_are_removable_but_original_sessions_are_preserved(self):
+        names = ('local_1_template.sesx', 'local_1-2_template.sesx', 'local_1-3_template.sesx', 'local_1-2-3_template.sesx')
+        for name in names:
+            (self.support / 'templates' / name).write_text('owned template copy')
+        original = self.home / 'Documents/Original template.sesx'
+        original.write_text('operator original')
+        unknown = self.support / 'templates/Actual episode.sesx'
+        unknown.write_text('preserve unknown session')
+        self.execute(('data',))
+        for name in names:
+            self.assertFalse((self.support / 'templates' / name).exists())
+        self.assertTrue(original.exists())
+        self.assertTrue(unknown.exists())
+
     def test_preview_is_non_destructive(self):
         plan = self.engine.plan(('app', 'runtime', 'data'))
         self.assertTrue(plan['remove'])

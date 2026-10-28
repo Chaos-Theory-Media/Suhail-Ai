@@ -15,6 +15,7 @@ from .meter import Monitor
 from .safety import Approvals, powered, serialised
 from .presenter_speech import PresenterSpeech
 from .models import LocalModels
+from .template_catalog import TemplateCatalog
 
 SEVERITY_ORDER = {"fail": 0, "warn": 1, "manual": 2, "info": 3, "ok": 4}
 
@@ -46,6 +47,7 @@ class Studio:
         self.approvals = Approvals(self)
         self.presenter_speech = PresenterSpeech(self)
         self.local_models = LocalModels(self)
+        self.template_catalog = TemplateCatalog(self)
 
     def require_on(self):
         if not self.lifecycle.on:

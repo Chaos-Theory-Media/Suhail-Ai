@@ -1,0 +1,13 @@
+{
+  "version": "3.2.1",
+  "python_tests": 229,
+  "javascript_checks": 40,
+  "live_http_checks": 66,
+  "template_catalog_unit_tests": 19,
+  "installer_syntax": "passed",
+  "diff_whitespace": "passed",
+  "native_mac_folder_access_tested": false,
+  "actual_audition_26_3_files_tested": false,
+  "native_safari_dropdown_tested": false,
+  "scope": "Read-only saved-session search and inspection; explicitly confirmed empty-template adoption; existing originals and production routing preserved."
+}

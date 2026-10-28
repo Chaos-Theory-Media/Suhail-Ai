@@ -284,7 +284,9 @@ class Uninstaller:
         if any(path == root or inside(path, root) for root in roots):
             return [], [dict(path=str(path), reason='recording location')]
         if path.suffix.lower() in MEDIA and not (personal and path.parent == self.support / 'templates'
-                                               and path.name in ('local_template.sesx', 'zoom_template.sesx')):
+                                               and path.name in ('local_template.sesx', 'zoom_template.sesx',
+                                                                 'local_1_template.sesx', 'local_1-2_template.sesx',
+                                                                 'local_1-3_template.sesx', 'local_1-2-3_template.sesx')):
             return [], [dict(path=str(path), reason='audio/session file')]
         if path.is_symlink() or not path.is_dir():
             return [path], []

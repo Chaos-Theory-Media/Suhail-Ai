@@ -20,7 +20,7 @@ class Element {
   addEventListener(name, fn) { this.listeners[name] = fn; }
   setAttribute(name, value) {this[name] = value;}
   append() {}
-  replaceChildren() {}
+  replaceChildren(...children) {this.children = children;}
   prepend() {}
   remove() {}
 }
@@ -297,4 +297,68 @@ test('manual uploads preserve multipart encoding and carry the local write heade
   assert.equal(request.opts.headers['X-Sawti'], '1');
   assert.equal(request.opts.headers['Content-Type'], undefined);
   assert.ok(request.opts.body);
+});
+
+test('template search lists saved files without adopting or launching them', async () => {
+  const h = await harness();
+  vm.runInContext("S.on=true; S.micContext='true:local:1'; S.micPlanId='two-mics'", h.ctx);
+  const calls = [];
+  h.ctx.fetch = async (url, opts) => {
+    calls.push(url);
+    return {ok:true, json:async () => ({files:[{id:'one',name:'Two people.sesx',folder:'/Documents/Templates'}], warnings:[],limited:false})};
+  };
+  await h.nodes.get('#findTemplates').listeners.click();
+  assert.match(h.nodes.get('#templateChoice').children[1].textContent, /Two people.sesx.*Documents/);
+  assert.deepEqual(calls, ['/api/audition/templates/search']);
+  assert.equal(h.nodes.get('#useTemplateChoice').disabled, true);
+});
+
+test('template inspection requires a fresh empty-template acknowledgement before adoption', async () => {
+  const h = await harness();
+  vm.runInContext("S.on=true; S.micContext='true:local:1'; S.micPlanId='two-mics'", h.ctx);
+  h.nodes.get('#templateChoice').value = 'one';
+  h.ctx.fetch = async () => ({ok:true,json:async () => ({matches_plan:true,template:{tracks:[{name:'Presenter',armed:true},{name:'Guest',armed:true}],sample_rate:48000,contains_media:false,sha256:'a'.repeat(64)}})});
+  await h.nodes.get('#templateChoice').listeners.change();
+  assert.match(h.nodes.get('#templatePreview').textContent, /2 audio track/);
+  assert.equal(h.nodes.get('#useTemplateChoice').disabled, true);
+  h.nodes.get('#templateEmpty').checked = true;
+  h.nodes.get('#templateEmpty').listeners.change();
+  assert.equal(h.nodes.get('#useTemplateChoice').disabled, false);
+  assert.equal(h.captures(), 0);
+});
+
+test('recorded-session preview cannot enable template adoption', async () => {
+  const h = await harness();
+  vm.runInContext("S.on=true; S.micContext='true:local:1'; S.micPlanId='two-mics'", h.ctx);
+  h.nodes.get('#templateChoice').value = 'recorded';
+  h.ctx.fetch = async () => ({ok:true,json:async () => ({matches_plan:true,template:{tracks:[{name:'Presenter',armed:true},{name:'Guest',armed:true}],sample_rate:48000,contains_media:true,sha256:'a'.repeat(64)}})});
+  await h.nodes.get('#templateChoice').listeners.change();
+  h.nodes.get('#templateEmpty').checked = true;
+  h.nodes.get('#templateEmpty').listeners.change();
+  assert.equal(h.nodes.get('#useTemplateChoice').disabled, true);
+  assert.match(h.nodes.get('#templatePreview').textContent, /Contains clips/);
+});
+
+test('late template inspection is discarded after microphone context changes', async () => {
+  const h = await harness();
+  vm.runInContext("S.on=true; S.micContext='true:local:1'; S.micPlanId='old-plan'", h.ctx);
+  h.nodes.get('#templateChoice').value = 'one';
+  let finish;
+  h.ctx.fetch = async () => new Promise(resolve => {finish=resolve;});
+  const pending = h.nodes.get('#templateChoice').listeners.change();
+  vm.runInContext("S.micPlanId='new-plan'; resetTemplateChoices()", h.ctx);
+  finish({ok:true,json:async () => ({matches_plan:true,template:{tracks:[],sample_rate:48000,contains_media:false,sha256:'a'.repeat(64)}})});
+  await pending;
+  assert.equal(h.nodes.get('#templatePreview').hidden, true);
+  assert.equal(h.nodes.get('#useTemplateChoice').disabled, true);
+  assert.equal(vm.runInContext('templateSelection', h.ctx), null);
+});
+
+test('ordinary status polling preserves a pending saved-template choice', async () => {
+  const h = await harness();
+  const state="{on:true,mode:'local',power_epoch:1,microphone_plan:{id:'two-mics',inputs:[1,2]},notices:[]}";
+  vm.runInContext(`renderPower(${state})`, h.ctx);
+  h.nodes.get('#templateChoice').value = 'selected';
+  vm.runInContext(`renderPower(${state})`, h.ctx);
+  assert.equal(h.nodes.get('#templateChoice').value, 'selected');
 });

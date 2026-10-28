@@ -62,6 +62,8 @@ def create_app(studio):
             # behind it; discard the response if its admission epoch changes.
             if request.path in ('/api/chat', '/api/voice', '/api/audition/inspect',
                                 '/api/models/check', '/api/knowledge/import', '/api/knowledge/ask',
+                                '/api/audition/templates/search', '/api/audition/templates/inspect',
+                                '/api/audition/template', '/api/audition/templates/use',
                                 '/api/presenter-speech/speak', '/api/presenter-speech/test'):
                 g.admitted_epoch = epoch
                 g.studio_locked = False
@@ -288,7 +290,46 @@ def create_app(studio):
 
     @app.post("/api/audition/template")
     def audition_template():
-        info = run(lambda: audition.adopt_template(studio, studio.mode, str(body().get("path", ""))))
+        data = body()
+        if studio.live or data.get('studio_idle') is not True or data.get('blank_template_confirmed') is not True:
+            raise ApiError('Confirm all recording is idle and this is an empty reusable template.')
+        if not isinstance(data.get('path'), str):
+            raise ApiError('Choose a saved .sesx file path.')
+        from .template_catalog import context
+        with studio.lock:
+            if g.admitted_epoch != studio.power_epoch:
+                raise ApiError('Studio power changed; the template was not adopted.')
+            bound, mode = context(studio), studio.mode
+        info = run(lambda: audition.adopt_template(studio, mode, data['path'], expected_context=bound))
+        return jsonify(template=info)
+
+    @app.post('/api/audition/templates/search')
+    def audition_templates_search():
+        return jsonify(run(lambda: studio.template_catalog.search(body().get('folder'))))
+
+    @app.post('/api/audition/templates/inspect')
+    def audition_templates_inspect():
+        choice = body().get('id')
+        source = run(lambda: studio.template_catalog.resolve(choice))
+        info = run(lambda: audition.parse_sesx(source))
+        run(lambda: studio.template_catalog.resolve(choice))
+        expected = len(studio.mic_plan['inputs']) if studio.mode == 'local' and studio.mic_plan else None
+        return jsonify(template=info, expected_tracks=expected,
+                       matches_plan=None if expected is None else len(info['tracks']) == expected)
+
+    @app.post('/api/audition/templates/use')
+    def audition_templates_use():
+        data = body()
+        if studio.live or data.get('studio_idle') is not True or data.get('blank_template_confirmed') is not True:
+            raise ApiError('Confirm all recording is idle and this is an empty reusable template.')
+        if not isinstance(data.get('sha256'), str) or len(data['sha256']) != 64:
+            raise ApiError('Inspect the selected file before using it as a template.')
+        with studio.lock:
+            if g.admitted_epoch != studio.power_epoch:
+                raise ApiError('Studio power changed; the template was not adopted.')
+            source = run(lambda: studio.template_catalog.resolve(data.get('id')))
+            bound, mode = studio.template_catalog.bound_context, studio.mode
+        info = run(lambda: audition.adopt_template(studio, mode, source, expected_sha256=data['sha256'], expected_context=bound))
         return jsonify(template=info)
 
     @app.post("/api/session/prepare")
